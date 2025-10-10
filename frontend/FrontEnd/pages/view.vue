@@ -1,0 +1,37 @@
+<template>
+  <div class="view-wrap">
+    <header class="head">
+      <h1>Ruumivaade</h1>
+      <div class="actions">
+        <NuxtLink class="btn" to="/storage">Muuda paigutust</NuxtLink>
+        <button class="btn" @click="openEditor">Muuda sisu</button>
+      </div>
+    </header>
+    <section class="canvas-card">
+      <ClientOnly>
+        <ViewCanvas :selected-id="selectedId" @select="id => selectedId = id" />
+      </ClientOnly>
+    </section>
+
+    <ObjectPopup v-if="showPopup" :unit-id="selectedId" @close="showPopup=false" />
+  </div>
+</template>
+
+<script setup lang="ts">
+import ViewCanvas from '~/components/ViewCanvas.vue'
+import ObjectPopup from '~/components/ObjectPopup.vue'
+import { ref } from 'vue'
+const selectedId = ref<number | null>(null)
+const showPopup = ref(false)
+function openEditor(){ showPopup.value = true }
+</script>
+
+<style scoped>
+.view-wrap { min-height: 100vh; max-width: 1080px; margin: 0 auto; padding: 20px; }
+.head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.canvas-card { background: rgba(17,24,39,0.8); border: 1px solid #334155; border-radius: 16px; padding: 12px; }
+.actions { display: flex; gap: 8px; }
+.btn { background: var(--accent); color: #062217; border-radius: 10px; padding: 8px 12px; font-weight: 700; text-decoration: none; border: none; cursor: pointer; }
+.btn:hover { background: var(--accent-hover); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+</style>
