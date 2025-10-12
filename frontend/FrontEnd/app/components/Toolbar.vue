@@ -1,7 +1,6 @@
 <template>
   <div class="toolbar">
     <button class="btn" @click="newRoom">Uus ruum</button>
-    <button class="btn" @click="openShapes">Kujunda ruum</button>
     <button class="btn" :class="{ active: store.addPointMode }" @click="toggleAdd">Lisa tipp</button>
     <button class="btn success" @click="save">Salvesta ruum</button>
   </div>
@@ -16,7 +15,6 @@ const store = useRoomShapeStore()
 const storage = useStorageStore()
 
 const newRoom = () => { store.resetShape(); storage.clear() }
-const openShapes = () => store.openShapeModal()
 const toggleAdd = () => store.toggleAddPointMode()
 const save = () => router.push('/storage')
 </script>

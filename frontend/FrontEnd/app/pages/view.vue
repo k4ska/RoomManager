@@ -3,6 +3,7 @@
     <header class="head">
       <h1>Ruumivaade</h1>
       <div class="actions">
+        <NuxtLink class="btn" to="/storage">Muuda paigutust</NuxtLink>
         <button class="btn" @click="openEditor">Muuda sisu</button>
       </div>
     </header>

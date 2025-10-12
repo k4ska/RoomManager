@@ -1,6 +1,6 @@
 <template>
-  <div class="backdrop">
-    <div class="modal">
+  <div class="backdrop" @click="$emit('close')">
+    <div class="modal" @click.stop>
       <h3>Üksuse sisu</h3>
       <div v-if="unit" class="list">
         <!-- Üksuse nimi ainult üks kord üleval -->

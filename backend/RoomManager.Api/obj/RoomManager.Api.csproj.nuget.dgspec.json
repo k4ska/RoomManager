@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\olive\\Desktop\\room-manager\\backend\\RoomManager.Api\\RoomManager.Api.csproj": {}
+    "C:\\Users\\olive\\Desktop\\room-manager\\BackEnd\\RoomManager.Api\\RoomManager.Api.csproj": {}
   },
   "projects": {
-    "C:\\Users\\olive\\Desktop\\room-manager\\backend\\RoomManager.Api\\RoomManager.Api.csproj": {
+    "C:\\Users\\olive\\Desktop\\room-manager\\BackEnd\\RoomManager.Api\\RoomManager.Api.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\olive\\Desktop\\room-manager\\backend\\RoomManager.Api\\RoomManager.Api.csproj",
+        "projectUniqueName": "C:\\Users\\olive\\Desktop\\room-manager\\BackEnd\\RoomManager.Api\\RoomManager.Api.csproj",
         "projectName": "RoomManager.Api",
-        "projectPath": "C:\\Users\\olive\\Desktop\\room-manager\\backend\\RoomManager.Api\\RoomManager.Api.csproj",
+        "projectPath": "C:\\Users\\olive\\Desktop\\room-manager\\BackEnd\\RoomManager.Api\\RoomManager.Api.csproj",
         "packagesPath": "C:\\Users\\olive\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\olive\\Desktop\\room-manager\\backend\\RoomManager.Api\\obj\\",
+        "outputPath": "C:\\Users\\olive\\Desktop\\room-manager\\BackEnd\\RoomManager.Api\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
