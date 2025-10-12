@@ -39,7 +39,11 @@ function setSelected(id: number | null){ selectedId.value = id }
 onMounted(() => { (window as any).__rm_setSelected = setSelected })
 onBeforeUnmount(() => { delete (window as any).__rm_setSelected })
 function removeSelected(){ if(selectedId.value!=null){ store.removeUnit(selectedId.value); selectedId.value=null } }
-function removeAll(){ store.clear(); selectedId.value=null }
+function removeAll(){
+  if(!hasItems.value) return
+  const ok = window.confirm('Kas kustutada kõik üksused? Seda toimingut ei saa tagasi võtta.')
+  if(ok){ store.clear(); selectedId.value=null }
+}
 </script>
 
 <style scoped>
