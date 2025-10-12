@@ -23,8 +23,10 @@
 <script setup lang="ts">
 import type { StorageType } from '~/stores/storageStore'
 import { useStorageStore } from '~/stores/storageStore'
+import { useRoomShapeStore } from '~/stores/roomShape'
 
 const store = useStorageStore()
+const room = useRoomShapeStore()
 
 // Source of truth for selector + canvas
 const list = [
@@ -44,8 +46,61 @@ function onDragStart(item: { type: StorageType, emoji: string }, e: DragEvent) {
   e.dataTransfer?.setDragImage?.(new Image(), 0, 0)
 }
 
+function pointInPolygon(px: number, py: number, poly: {x:number;y:number}[]) {
+  let inside = false
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y
+    const xj = poly[j].x, yj = poly[j].y
+    const intersect = ((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / ((yj - yi) || 1e-9) + xi)
+    if (intersect) inside = !inside
+  }
+  return inside
+}
+
+function rectCornersTopLeft(x:number,y:number,w:number,h:number,deg:number){
+  const cx = x + w/2, cy = y + h/2
+  const rad = deg * Math.PI / 180
+  const cos = Math.cos(rad), sin = Math.sin(rad)
+  const pts = [
+    {x:-w/2, y:-h/2}, {x: w/2, y:-h/2}, {x: w/2, y: h/2}, {x:-w/2, y: h/2}
+  ]
+  return pts.map(p => ({ x: cx + p.x * cos - p.y * sin, y: cy + p.x * sin + p.y * cos }))
+}
+
+function fullyInsideRoom(x:number,y:number,w:number,h:number,rot:number) {
+  const corners = rectCornersTopLeft(x,y,w,h,rot)
+  return corners.every(c => pointInPolygon(c.x, c.y, room.points))
+}
+
+function centroid(poly: {x:number;y:number}[]) {
+  let x = 0, y = 0
+  for (const p of poly) { x += p.x; y += p.y }
+  return { x: x / poly.length, y: y / poly.length }
+}
+
+function clamp(v:number,min:number,max:number){ return Math.max(min, Math.min(max, v)) }
+
+function snapInside(x:number,y:number,w:number,h:number,rot:number){
+  if (fullyInsideRoom(x,y,w,h,rot)) return {x,y}
+  const c = centroid(room.points)
+  let cx = x + w/2, cy = y + h/2
+  for (let i=0;i<300;i++){
+    const dirx = c.x - cx, diry = c.y - cy
+    const len = Math.hypot(dirx, diry) || 1
+    cx += dirx/len * 4
+    cy += diry/len * 4
+    const nx = cx - w/2, ny = cy - h/2
+    if (fullyInsideRoom(nx,ny,w,h,rot)) return { x: nx, y: ny }
+  }
+  return { x: clamp(c.x - w/2, 0, room.stage.width - w), y: clamp(c.y - h/2, 0, room.stage.height - h) }
+}
+
 function quickAdd(item: { type: StorageType, emoji: string }) {
-  store.addUnit(item.type, 40, 40, item.emoji)
+  const id = store.addUnit(item.type, 40, 40, item.emoji)
+  const it = store.items.find(i => i.id === id)
+  if (!it) return
+  const pos = snapInside(it.x, it.y, it.w, it.h, it.rotation)
+  store.updatePos(id, pos.x, pos.y)
 }
 </script>
 
