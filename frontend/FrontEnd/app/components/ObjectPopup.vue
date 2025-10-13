@@ -3,22 +3,19 @@
     <div class="modal" @click.stop>
       <h3>Üksuse sisu</h3>
       <div v-if="unit" class="list">
-        <!-- Üksuse nimi ainult üks kord üleval -->
         <div class="row single">
           <input class="inp" v-model="unitName" placeholder="Üksuse nimi (nt Laud akna all)" />
         </div>
-
-        <!-- Sisu read -->
         <div v-for="(row, i) in rows" :key="i" class="row">
           <input class="inp" v-model="row.name" placeholder="Ese (nt Pliiatsid)" />
           <div class="qty-wrap">
             <button class="icon" @click="dec(i)">-</button>
-            <input class="inp qty" type="number" min="0" v-model.number="row.quantity" />
+            <input class="inp qty" type="number" min="1" v-model.number="row.quantity" />
             <button class="icon" @click="inc(i)">+</button>
           </div>
           <button class="btn danger" @click="remove(i)">Kustuta</button>
         </div>
-
+        <div v-if="showError" class="error-text">Kogus peab olema vähemalt 1.</div>
         <div class="actions">
           <button class="btn" @click="add">Lisa ese</button>
           <div class="spacer" />
@@ -41,17 +38,26 @@ const store = useStorageStore()
 const unit = computed(() => store.items.find(i => i.id === props.unitId))
 const unitName = ref('')
 const rows = ref<StoredObject[]>([])
+const showError = ref(false)
 
 watch(unit, (u) => {
   unitName.value = u?.name ?? ''
   rows.value = u ? u.contents.map(x => ({ ...x })) : []
 }, { immediate: true })
 
-function add(){ rows.value.push({ name: 'Ese', quantity: 1 }) }
-function remove(i:number){ rows.value.splice(i,1) }
-function save(){ if(unit.value){ store.setContents(unit.value.id, rows.value); store.updateUnit(unit.value.id, { name: unitName.value }) } emit('close') }
-function inc(i:number){ rows.value[i].quantity = (rows.value[i].quantity ?? 0) + 1 }
-function dec(i:number){ rows.value[i].quantity = Math.max(0, (rows.value[i].quantity ?? 0) - 1) }
+const add = () => rows.value.push({ name: 'Ese', quantity: 1 })
+const remove = (i: number) => rows.value.splice(i, 1)
+const inc = (i: number) => rows.value[i].quantity++
+const dec = (i: number) => rows.value[i].quantity = Math.max(1, rows.value[i].quantity - 1)
+const save = () => {
+  const valid = rows.value.every(r => Number.isInteger(r.quantity) && r.quantity >= 1)
+  if (!valid) { showError.value = true; return }
+  if (unit.value) {
+    store.setContents(unit.value.id, rows.value)
+    store.updateUnit(unit.value.id, { name: unitName.value })
+  }
+  emit('close')
+}
 </script>
 
 <style scoped>
@@ -75,4 +81,5 @@ h3 { margin: 0 0 12px 0; }
 .btn.danger { background: rgba(244,63,94,0.15); border-color: #7f1d1d; min-width: 96px; }
 .btn.danger:hover { background: rgba(244,63,94,0.25); }
 .empty { color: #9ca3af; text-align: center; padding: 24px; }
+.error-text { font-size: 13px; color: #f87171; margin-top: 4px; }
 </style>
