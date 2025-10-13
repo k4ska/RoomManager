@@ -69,5 +69,5 @@ function fillFor(type: StorageType) {
 .canvas-wrap { 
   display: flex; 
   justify-content: center; 
-  }
+}
 </style>
