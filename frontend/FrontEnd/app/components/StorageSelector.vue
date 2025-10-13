@@ -115,8 +115,14 @@ function quickAdd(item: { type: StorageType, emoji: string }) {
   background: rgba(15,23,42,0.85);
   box-sizing: border-box;
 }
-h3 { margin: 0 0 8px 0; font-size: 1.05rem; }
-.items { display: grid; gap: 8px; }
+h3 { 
+  margin: 0 0 8px 0; 
+  font-size: 1.05rem; 
+}
+.items { 
+  display: grid; 
+  gap: 8px; 
+}
 .item {
   display: flex; align-items: center; gap: 10px;
   background: rgba(148,163,184,0.12);
@@ -126,7 +132,9 @@ h3 { margin: 0 0 8px 0; font-size: 1.05rem; }
   cursor: grab;
   user-select: none;
 }
-.item:hover { background: rgba(148,163,184,0.22); }
+.item:hover { 
+  background: rgba(148,163,184,0.22); 
+}
 .emoji {
   display: inline-flex;
   align-items: center;
@@ -136,7 +144,13 @@ h3 { margin: 0 0 8px 0; font-size: 1.05rem; }
   font-size: 1.25rem;
   line-height: 1;
 }
-.label { line-height: 1.2; }
-.help { color: #9ca3af; margin-top: 10px; font-size: .9rem; }
+.label { 
+  line-height: 1.2; 
+}
+.help { 
+  color: #9ca3af; 
+  margin-top: 10px; 
+  font-size: .9rem; 
+}
 </style>
 

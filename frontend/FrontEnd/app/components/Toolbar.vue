@@ -20,7 +20,10 @@ const save = () => router.push('/storage')
 </script>
 
 <style scoped>
-.toolbar { display: flex; gap: 8px; }
+.toolbar { 
+  display: flex; 
+  gap: 8px; 
+}
 .btn {
   background: rgba(148, 163, 184, 0.15);
   color: var(--text);
@@ -31,9 +34,21 @@ const save = () => router.push('/storage')
   cursor: pointer;
   transition: background-color .15s ease, transform .1s ease;
 }
-.btn:hover { background: rgba(148, 163, 184, 0.25); }
-.btn:active { transform: translateY(1px); }
-.btn.success { background: var(--accent); color: #062217; border-color: transparent; }
-.btn.success:hover { background: var(--accent-hover); }
-.btn.active { outline: 2px solid var(--accent); }
+.btn:hover { 
+  background: rgba(148, 163, 184, 0.25); 
+}
+.btn:active { 
+  transform: translateY(1px); 
+}
+.btn.success { 
+  background: var(--accent); 
+  color: #062217; 
+  border-color: transparent; 
+}
+.btn.success:hover { 
+  background: var(--accent-hover); 
+}
+.btn.active { 
+  outline: 2px solid var(--accent); 
+}
 </style>
