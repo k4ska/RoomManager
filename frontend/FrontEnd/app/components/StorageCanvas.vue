@@ -291,5 +291,8 @@ function onTransformEnd(id:number, e:any){
 </template>
 
 <style scoped>
-.canvas-wrap { display: flex; justify-content: center; }
+.canvas-wrap { 
+  display: flex; 
+  justify-content: center; 
+}
 </style>
