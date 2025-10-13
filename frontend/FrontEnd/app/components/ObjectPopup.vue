@@ -52,6 +52,11 @@ const dec = (i: number) => rows.value[i].quantity = Math.max(1, rows.value[i].qu
 const save = () => {
   const valid = rows.value.every(r => Number.isInteger(r.quantity) && r.quantity >= 1)
   if (!valid) { showError.value = true; return }
+  const hasDefaultNames = rows.value.some(r => r.name.trim().toLowerCase() === 'ese')
+  if (hasDefaultNames) {
+    alert('Palun muuda “Ese” enne salvestamist!') // or use a nicer UI message
+    return
+  }
   if (unit.value) {
     store.setContents(unit.value.id, rows.value)
     store.updateUnit(unit.value.id, { name: unitName.value })
