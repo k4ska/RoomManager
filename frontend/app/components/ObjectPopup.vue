@@ -35,20 +35,27 @@ import { useStorageStore, type StoredObject } from '~/stores/storageStore'
 const props = defineProps<{ unitId: number | null }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 const store = useStorageStore()
+// Finds the selected storage unit by id
 const unit = computed(() => store.items.find(i => i.id === props.unitId))
 const unitName = ref('')
 const rows = ref<StoredObject[]>([])
 const showError = ref(false)
 
+// Updates form fields when the selected unit changes
 watch(unit, (u) => {
   unitName.value = u?.name ?? ''
   rows.value = u ? u.contents.map(x => ({ ...x })) : []
 }, { immediate: true })
 
+// Adds a new empty row
 const add = () => rows.value.push({ name: 'Ese', quantity: 1 })
+// Removes a row at index
 const remove = (i: number) => rows.value.splice(i, 1)
+// Increases quantity for a row
 const inc = (i: number) => rows.value[i].quantity++
+// Decreases quantity for a row (min 1)
 const dec = (i: number) => rows.value[i].quantity = Math.max(1, rows.value[i].quantity - 1)
+// Validates and saves changes to the store
 const save = () => {
   const valid = rows.value.every(r => Number.isInteger(r.quantity) && r.quantity >= 1)
   if (!valid) { showError.value = true; return }

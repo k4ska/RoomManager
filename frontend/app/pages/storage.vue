@@ -30,15 +30,21 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useStorageStore } from '~/stores/storageStore'
 
 const router = useRouter()
+// Opens the read-only view page
 function goView() { router.push('/view') }
 
 const store = useStorageStore()
 const hasItems = computed(() => store.items.length > 0)
 const selectedId = ref<number | null>(null)
+// Stores the selected unit id
 function setSelected(id: number | null){ selectedId.value = id }
+// Installs bridge to update selection from canvas
 onMounted(() => { (window as any).__rm_setSelected = setSelected })
+// Cleans up selection bridge on unmount
 onBeforeUnmount(() => { delete (window as any).__rm_setSelected })
+// Removes the currently selected unit
 function removeSelected(){ if(selectedId.value!=null){ store.removeUnit(selectedId.value); selectedId.value=null } }
+// Removes all units after confirmation
 function removeAll(){
   if(!hasItems.value) return
   const ok = window.confirm('Kas kustutada kõik üksused? Seda toimingut ei saa tagasi võtta.')

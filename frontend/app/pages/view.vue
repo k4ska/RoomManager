@@ -23,6 +23,7 @@ import ObjectPopup from '~/components/ObjectPopup.vue'
 import { ref } from 'vue'
 const selectedId = ref<number | null>(null)
 const showPopup = ref(false)
+// Opens the item editor popup
 function openEditor(){ showPopup.value = true }
 </script>
 

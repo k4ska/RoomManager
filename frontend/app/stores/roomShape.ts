@@ -18,10 +18,12 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
   const addPointMode = ref(false)
   const showShapeModal = ref(false)
 
+  // Clamps a value between min and max
   function clamp(v: number, min: number, max: number) {
     return Math.max(min, Math.min(max, v))
   }
 
+  // Updates a point position while keeping it within stage bounds
   function updatePoint(index: number, x: number, y: number) {
     points.value[index] = {
       x: clamp(x, 0, stage.width),
@@ -29,10 +31,12 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     }
   }
 
+  // Resets the room shape to default rectangle
   function resetShape() {
     setShape('rectangle')
   }
 
+  // Sets the room shape and updates corner points
   function setShape(type: ShapeType) {
     shape.value = type
     const w = stage.width
@@ -65,19 +69,24 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     }
   }
 
+  // Toggles the add-point mode
   function toggleAddPointMode() {
     addPointMode.value = !addPointMode.value
   }
 
+  // Opens the shape selection modal
   function openShapeModal() { showShapeModal.value = true }
+  // Closes the shape selection modal
   function closeShapeModal() { showShapeModal.value = false }
 
+  // Inserts a point to the nearest edge to the given coordinates
   function insertPointOnNearestEdge(x: number, y: number) {
     if (points.value.length < 2) return
     const arr = points.value
     let bestDist = Number.POSITIVE_INFINITY
     let insertIndex = 0
 
+    // Calculates distance from a point to a line segment
     function distPointToSeg(px: number, py: number, ax: number, ay: number, bx: number, by: number) {
       const abx = bx - ax
       const aby = by - ay
