@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRoomShapeStore } from '~/stores/roomShape'
 import { useStorageStore, type StorageType } from '~/stores/storageStore'
 
@@ -12,31 +12,41 @@ const transformerRef = ref<any>(null)
 const selectedId = ref<number | null>(null)
 const hoverId = ref<number | null>(null)
 
-const MIN = 30 // px, ~0.3m if 100px/m scale
-const EMOJI_SIZE = 24 // selection box tight to emoji
-const WALL_MARGIN = 2 // px margin from walls
-const lastCenter = new Map<number, { x: number; y: number }>()
+const MIN = 30 // minimum side length in pixels
+const EMOJI_SIZE = 24 // size of emoji inside the unit
+const WALL_MARGIN = 2 // minimum distance from walls in pixels
 
-function clamp(v: number, min: number, max: number) { return Math.max(min, Math.min(max, v)) }
+// Returns value clamped between min and max
+function clampValue(v: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, v))
+}
 
-function centroid(poly: {x:number;y:number}[]) {
-  let x = 0, y = 0
-  for (const p of poly) { x += p.x; y += p.y }
+// Returns the center point of a polygon
+function getPolygonCenter(poly: { x: number; y: number }[]) {
+  let x = 0
+  let y = 0
+  for (const p of poly) {
+    x += p.x
+    y += p.y
+  }
   return { x: x / poly.length, y: y / poly.length }
 }
 
-function pointInPolygon(px: number, py: number, poly: {x:number;y:number}[]) {
+// Checks if a point is inside a polygon using ray-casting
+function isPointInsidePolygon(px: number, py: number, poly: { x: number; y: number }[]) {
   let inside = false
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
     const xi = poly[i].x, yi = poly[i].y
     const xj = poly[j].x, yj = poly[j].y
-    const intersect = ((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / ((yj - yi) || 1e-9) + xi)
-    if (intersect) inside = !inside
+    const crosses = (yi > py) !== (yj > py)
+    const atLeft = px < (xj - xi) * (py - yi) / ((yj - yi) || 1e-9) + xi
+    if (crosses && atLeft) inside = !inside
   }
   return inside
 }
 
-function distanceToPolygonEdge(px: number, py: number, poly: {x:number;y:number}[]) {
+// Returns the shortest distance from a point to the polygon edges
+function getDistanceToPolygon(px: number, py: number, poly: { x: number; y: number }[]) {
   let minDist = Infinity
   for (let i = 0; i < poly.length; i++) {
     const j = (i + 1) % poly.length
@@ -53,74 +63,92 @@ function distanceToPolygonEdge(px: number, py: number, poly: {x:number;y:number}
   return minDist
 }
 
-function rectCornersTopLeft(x:number,y:number,w:number,h:number,deg:number){
-  const cx = x + w/2, cy = y + h/2
+// Returns rectangle corner points (from top-left), respecting rotation
+function getRectCornersFromTopLeft(x: number, y: number, w: number, h: number, deg: number) {
+  const cx = x + w / 2
+  const cy = y + h / 2
   const rad = deg * Math.PI / 180
-  const cos = Math.cos(rad), sin = Math.sin(rad)
-  const pts = [
-    {x:-w/2, y:-h/2}, {x: w/2, y:-h/2}, {x: w/2, y: h/2}, {x:-w/2, y: h/2}
+  const cos = Math.cos(rad)
+  const sin = Math.sin(rad)
+  const points = [
+    { x: -w / 2, y: -h / 2 },
+    { x: w / 2, y: -h / 2 },
+    { x: w / 2, y: h / 2 },
+    { x: -w / 2, y: h / 2 }
   ]
-  return pts.map(p => ({ x: cx + p.x * cos - p.y * sin, y: cy + p.x * sin + p.y * cos }))
+  return points.map(p => ({
+    x: cx + p.x * cos - p.y * sin,
+    y: cy + p.x * sin + p.y * cos
+  }))
 }
 
-function fullyInsideRoom(x:number,y:number,w:number,h:number,rot:number) {
-  const corners = rectCornersTopLeft(x,y,w,h,rot)
-  // Kontrolli, et kõik nurgad on ruumis JA piisavalt kaugel seinast
+// Checks if a rotated rectangle is fully inside the room and away from walls
+function isRectFullyInsideRoom(x: number, y: number, w: number, h: number, rot: number) {
+  const corners = getRectCornersFromTopLeft(x, y, w, h, rot)
   for (const c of corners) {
-    if (!pointInPolygon(c.x, c.y, room.points)) return false
-    if (distanceToPolygonEdge(c.x, c.y, room.points) < WALL_MARGIN) return false
+    if (!isPointInsidePolygon(c.x, c.y, room.points)) return false
+    if (getDistanceToPolygon(c.x, c.y, room.points) < WALL_MARGIN) return false
   }
   return true
 }
 
-function snapInside(x:number,y:number,w:number,h:number,rot:number){
-  if (fullyInsideRoom(x,y,w,h,rot)) return {x,y}
-  const c = centroid(room.points)
-  let cx = x + w/2, cy = y + h/2
-  for (let i=0;i<300;i++){
-    const dirx = c.x - cx, diry = c.y - cy
+// Moves a rectangle inside the room if needed, returns top-left
+function snapRectInsideRoom(x: number, y: number, w: number, h: number, rot: number) {
+  if (isRectFullyInsideRoom(x, y, w, h, rot)) return { x, y }
+  const center = getPolygonCenter(room.points)
+  let cx = x + w / 2
+  let cy = y + h / 2
+  for (let i = 0; i < 300; i++) {
+    const dirx = center.x - cx
+    const diry = center.y - cy
     const len = Math.hypot(dirx, diry) || 1
-    cx += dirx/len * 4
-    cy += diry/len * 4
-    const nx = cx - w/2, ny = cy - h/2
-    if (fullyInsideRoom(nx,ny,w,h,rot)) return { x: nx, y: ny }
+    cx += (dirx / len) * 4
+    cy += (diry / len) * 4
+    const nx = cx - w / 2
+    const ny = cy - h / 2
+    if (isRectFullyInsideRoom(nx, ny, w, h, rot)) return { x: nx, y: ny }
   }
-  return { x: clamp(c.x - w/2, 0, room.stage.width - w), y: clamp(c.y - h/2, 0, room.stage.height - h) }
+  return {
+    x: clampValue(center.x - w / 2, 0, room.stage.width - w),
+    y: clampValue(center.y - h / 2, 0, room.stage.height - h)
+  }
 }
 
-function findClosestValidPosition(wantedCenter:{x:number;y:number}, w:number, h:number, rot:number){
-  const roomCenter = centroid(room.points)
+// Finds the closest valid center inside the room while dragging
+function findClosestCenterInsideRoom(wantedCenter: { x: number; y: number }, w: number, h: number, rot: number) {
+  const roomCenter = getPolygonCenter(room.points)
   const dx = roomCenter.x - wantedCenter.x
   const dy = roomCenter.y - wantedCenter.y
   const dist = Math.hypot(dx, dy) || 1
   const stepX = dx / dist
   const stepY = dy / dist
-  
+
   let cx = wantedCenter.x
   let cy = wantedCenter.y
-  
+
   for (let step = 0; step < 200; step++) {
-    const x = cx - w/2, y = cy - h/2
-    if (fullyInsideRoom(x, y, w, h, rot)) {
-      return { x: cx, y: cy }
-    }
+    const x = cx - w / 2
+    const y = cy - h / 2
+    if (isRectFullyInsideRoom(x, y, w, h, rot)) return { x: cx, y: cy }
     cx += stepX * 2
     cy += stepY * 2
   }
-  
-  // Fallback - tagasta ruumi tsenter
+
   return { x: roomCenter.x, y: roomCenter.y }
 }
 
+// Sets up drag-and-drop for adding new items to the canvas
 onMounted(() => {
   const node = stageRef.value?.getNode?.()
   const container = node?.container?.()
   if (!container) return
-  container.addEventListener('dragover', (e: DragEvent) => { e.preventDefault() })
+
+  container.addEventListener('dragover', (e: DragEvent) => e.preventDefault())
   container.addEventListener('drop', (e: DragEvent) => {
     e.preventDefault()
     let type = 'box' as StorageType
     let emoji: string | undefined
+
     const json = e.dataTransfer?.getData('application/json')
     if (json) {
       try {
@@ -131,26 +159,30 @@ onMounted(() => {
     } else {
       type = (e.dataTransfer?.getData('text/plain') || 'box') as StorageType
     }
+
     const rect = container.getBoundingClientRect()
-    let x = clamp(e.clientX - rect.left, 0, room.stage.width)
-    let y = clamp(e.clientY - rect.top, 0, room.stage.height)
-    // place as top-left, then snap fully inside
+    const x = clampValue(e.clientX - rect.left, 0, room.stage.width)
+    const y = clampValue(e.clientY - rect.top, 0, room.stage.height)
+
+    // Place by top-left, then snap fully inside the room
     const id = storage.addUnit(type, x, y, emoji)
-    const it = storage.items.find(i => i.id === id)!
-    const pos = snapInside(it.x, it.y, it.w, it.h, it.rotation)
+    const item = storage.items.find(i => i.id === id)!
+    const pos = snapRectInsideRoom(item.x, item.y, item.w, item.h, item.rotation)
     storage.updatePos(id, pos.x, pos.y)
     selectedId.value = id
     attachTransformer()
-    if (typeof window !== 'undefined') { (window as any).__rm_setSelected?.(id) }
+    if (typeof window !== 'undefined') (window as any).__rm_setSelected?.(id)
   })
 })
 
-function detachTransformer(){
+// Removes the transformer from all nodes
+function detachTransformer() {
   const tr = transformerRef.value?.getNode?.()
   if (tr) tr.nodes([])
 }
 
-function attachTransformer(){
+// Attaches the transformer to the selected node
+function attachTransformer() {
   const layer = layerRef.value?.getNode?.()
   const tr = transformerRef.value?.getNode?.()
   if (!layer || !tr) return
@@ -163,52 +195,45 @@ function attachTransformer(){
   }
 }
 
-function fillFor(type: StorageType) {
-  switch(type){
-    case 'box': return '#38bdf8'
-    case 'cabinet': return '#f59e0b'
-    case 'shelf': return '#a78bfa'
-    case 'table': return '#34d399'
-    case 'drawer': return '#f472b6'
-    case 'locker': return '#22d3ee'
-    case 'workbench': return '#eab308'
-  }
-}
-
-const selected = computed(() => storage.items.find(i => i.id === selectedId.value) || null)
-
-function clearSelection(){
+// Clears the current selection
+function clearSelection() {
   selectedId.value = null
   detachTransformer()
-  if (typeof window !== 'undefined') { (window as any).__rm_setSelected?.(null) }
+  if (typeof window !== 'undefined') (window as any).__rm_setSelected?.(null)
 }
 
-function onRectClick(id:number){
+// Selects a unit by its id
+function onRectClick(id: number) {
   selectedId.value = id
   attachTransformer()
-  if (typeof window !== 'undefined') { (window as any).__rm_setSelected?.(id) }
+  if (typeof window !== 'undefined') (window as any).__rm_setSelected?.(id)
 }
 
-function onDragEnd(id:number, e:any, it:any){
+// Updates the item position after dragging ends
+function onDragEnd(id: number, e: any, item: any) {
   const node = e.target // group
-  const cx = node.x(), cy = node.y()
-  let x = cx - it.w/2
-  let y = cy - it.h/2
-  const pos = snapInside(x, y, it.w, it.h, it.rotation)
-  node.x(pos.x + it.w/2); node.y(pos.y + it.h/2)
+  const cx = node.x()
+  const cy = node.y()
+  const x = cx - item.w / 2
+  const y = cy - item.h / 2
+  const pos = snapRectInsideRoom(x, y, item.w, item.h, item.rotation)
+  node.x(pos.x + item.w / 2)
+  node.y(pos.y + item.h / 2)
   storage.updatePos(id, pos.x, pos.y)
 }
 
-function onTransformEnd(id:number, e:any){
+// Updates size and rotation after transforming ends
+function onTransformEnd(id: number, e: any) {
   const node = e.target
   const scale = node.scaleX() || 1 // keepRatio=true ensures X==Y
-  const it = storage.items.find(i => i.id === id)!
-  let side = Math.max(MIN, it.w * scale)
-  node.scaleX(1); node.scaleY(1)
+  const item = storage.items.find(i => i.id === id)!
+  const side = Math.max(MIN, item.w * scale)
+  node.scaleX(1)
+  node.scaleY(1)
   const rot = ((node.rotation() % 360) + 360) % 360
-  let x = node.x() - side/2
-  let y = node.y() - side/2
-  const pos = snapInside(x, y, side, side, rot)
+  const x = node.x() - side / 2
+  const y = node.y() - side / 2
+  const pos = snapRectInsideRoom(x, y, side, side, rot)
   storage.updateUnit(id, { x: pos.x, y: pos.y, w: side, h: side, rotation: rot })
 }
 </script>
@@ -228,48 +253,47 @@ function onTransformEnd(id:number, e:any){
           @mousedown="clearSelection"
         />
 
-        <template v-for="it in storage.items" :key="it.id">
+        <template v-for="item in storage.items" :key="item.id">
           <v-group
             :config="{
-              id: `unit-${it.id}`,
-              x: it.x + it.w/2,
-              y: it.y + it.h/2,
+              id: `unit-${item.id}`,
+              x: item.x + item.w/2,
+              y: item.y + item.h/2,
               offsetX: 0,
               offsetY: 0,
-              rotation: it.rotation,
+              rotation: item.rotation,
               draggable: true,
               dragBoundFunc: function(pos:any){
                 const wantedCenter = { x: pos.x, y: pos.y }
-                const tx = wantedCenter.x - it.w/2, ty = wantedCenter.y - it.h/2
-                
-                if (fullyInsideRoom(tx, ty, it.w, it.h, it.rotation)) {
-                  lastCenter.set(it.id, wantedCenter)
+                const tx = wantedCenter.x - item.w/2
+                const ty = wantedCenter.y - item.h/2
+
+                if (isRectFullyInsideRoom(tx, ty, item.w, item.h, item.rotation)) {
                   return wantedCenter
                 }
-              
-                const validCenter = findClosestValidPosition(wantedCenter, it.w, it.h, it.rotation)
-                lastCenter.set(it.id, validCenter)
+
+                const validCenter = findClosestCenterInsideRoom(wantedCenter, item.w, item.h, item.rotation)
                 return validCenter
               }
             }"
-            @mouseenter="() => hoverId = it.id"
-            @mouseleave="() => hoverId = (hoverId===it.id?null:hoverId)"
-            @click="() => onRectClick(it.id)"
-            @dragend="e => onDragEnd(it.id, e, it)"
-            @transformend="e => onTransformEnd(it.id, e)"
+            @mouseenter="() => hoverId = item.id"
+            @mouseleave="() => hoverId = (hoverId===item.id?null:hoverId)"
+            @click="() => onRectClick(item.id)"
+            @dragend="e => onDragEnd(item.id, e, item)"
+            @transformend="e => onTransformEnd(item.id, e)"
           >
             
             <v-rect :config="{
-              x: -it.w/2,
-              y: -it.h/2,
-              width: it.w,
-              height: it.h,
+              x: -item.w/2,
+              y: -item.h/2,
+              width: item.w,
+              height: item.h,
               cornerRadius: 8,
               fill: 'rgba(148,163,184,0.12)',
-              stroke: (hoverId===it.id || selectedId===it.id) ? '#93c5fd' : '#334155',
-              strokeWidth: (hoverId===it.id || selectedId===it.id) ? 2 : 1
+              stroke: (hoverId===item.id || selectedId===item.id) ? '#93c5fd' : '#334155',
+              strokeWidth: (hoverId===item.id || selectedId===item.id) ? 2 : 1
             }" />
-            <v-text :config="{ x: 0, y: 0, offsetX: EMOJI_SIZE/2, offsetY: EMOJI_SIZE/2, text: it.emoji, fontSize: EMOJI_SIZE }" />
+            <v-text :config="{ x: 0, y: 0, offsetX: EMOJI_SIZE/2, offsetY: EMOJI_SIZE/2, text: item.emoji, fontSize: EMOJI_SIZE }" />
           </v-group>
         </template>
 
@@ -296,3 +320,4 @@ function onTransformEnd(id:number, e:any){
   justify-content: center; 
 }
 </style>
+

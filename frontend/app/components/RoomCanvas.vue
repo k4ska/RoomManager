@@ -2,7 +2,8 @@
 import { useRoomShapeStore } from '~/stores/roomShape'
 const store = useRoomShapeStore()
 
-function doLinesIntersect(a1: {x:number,y:number}, a2: {x:number,y:number}, b1: {x:number,y:number}, b2: {x:number,y:number}) {
+// Checks if two line segments intersect
+function linesIntersect(a1: {x:number,y:number}, a2: {x:number,y:number}, b1: {x:number,y:number}, b2: {x:number,y:number}) {
   const det = (a2.x - a1.x) * (b2.y - b1.y) - (a2.y - a1.y) * (b2.x - b1.x)
   if (det === 0) return false
 
@@ -12,6 +13,7 @@ function doLinesIntersect(a1: {x:number,y:number}, a2: {x:number,y:number}, b1: 
   return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1)
 }
 
+// Validates if moving a point keeps polygon non-self-intersecting
 function canMovePoint(index: number, x: number, y: number) {
   const pts = [...store.points]
   pts[index] = { x, y }
@@ -28,7 +30,7 @@ function canMovePoint(index: number, x: number, y: number) {
       const b2 = pts[(j + 1) % pts.length]
       if (!b1 || !b2) continue
 
-      if (doLinesIntersect(a1, a2, b1, b2)) {
+      if (linesIntersect(a1, a2, b1, b2)) {
         return false
       }
     }
@@ -36,6 +38,7 @@ function canMovePoint(index: number, x: number, y: number) {
   return true
 }
 
+// Handles click to insert a point on the nearest edge
 function handleLayerClick(e: any) {
   if (!store.addPointMode) return
   const stage = e.target?.getStage?.()

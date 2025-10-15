@@ -13,6 +13,7 @@ export interface StorageUnit {
   h: number
   rotation: number // degrees 0..359
   emoji: string
+  name?: string
   contents: StoredObject[]
 }
 
@@ -46,6 +47,7 @@ const META: Record<StorageType, { w: number; h: number; emoji: string }> = {
 export const useStorageStore = defineStore('storage', () => {
   const items = ref<StorageUnit[]>([])
 
+  // Adds a new storage unit to the canvas
   function addUnit(type: StorageType, x: number, y: number, emojiOverride?: string) {
     const meta = META[type]
     const unit: StorageUnit = { id: idSeq++, type, x, y, w: meta.w, h: meta.h, rotation: 0, emoji: (emojiOverride ?? meta.emoji), name: (LABEL ? LABEL[type] : undefined), contents: [] }
@@ -53,32 +55,39 @@ export const useStorageStore = defineStore('storage', () => {
     return unit.id
   }
 
+  // Updates an existing storage unit with a partial patch
   function updateUnit(id: number, patch: Partial<Omit<StorageUnit, 'id' | 'type' | 'emoji'>>) {
     const it = items.value.find(i => i.id === id)
     if (!it) return
     Object.assign(it, patch)
   }
 
+  // Updates only the position of a storage unit
   function updatePos(id: number, x: number, y: number) { updateUnit(id, { x, y }) }
 
+  // Removes a unit by id
   function removeUnit(id: number) {
     items.value = items.value.filter(i => i.id !== id)
   }
 
+  // Clears all units
   function clear() { items.value = [] }
 
+  // Replaces the contents array for a unit
   function setContents(id: number, contents: StoredObject[]) {
     const it = items.value.find(i => i.id === id)
     if (!it) return
     it.contents = contents
   }
 
+  // Adds a single content item to a unit
   function addContent(id: number, item?: Partial<StoredObject>) {
     const it = items.value.find(i => i.id === id)
     if (!it) return
     it.contents.push({ name: item?.name ?? 'Ese', quantity: item?.quantity ?? 1 })
   }
 
+  // Removes a content item from a unit by index
   function removeContent(id: number, index: number) {
     const it = items.value.find(i => i.id === id)
     if (!it) return

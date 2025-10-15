@@ -14,8 +14,11 @@ const router = useRouter()
 const store = useRoomShapeStore()
 const storage = useStorageStore()
 
+// Resets the room shape and clears storage
 const newRoom = () => { store.resetShape(); storage.clear() }
+// Toggles point-adding mode for the room shape
 const toggleAdd = () => store.toggleAddPointMode()
+// Navigates to the storage layout page
 const save = () => router.push('/storage')
 </script>
 
