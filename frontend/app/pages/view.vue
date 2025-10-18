@@ -21,6 +21,8 @@
 import ViewCanvas from '~/components/ViewCanvas.vue'
 import ObjectPopup from '~/components/ObjectPopup.vue'
 import { ref } from 'vue'
+
+definePageMeta({ middleware: 'auth' })
 const selectedId = ref<number | null>(null)
 const showPopup = ref(false)
 // Opens the item editor popup

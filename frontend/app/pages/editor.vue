@@ -21,4 +21,6 @@
 <script setup lang="ts">
 import Toolbar from '~/components/Toolbar.vue'
 import RoomCanvas from '~/components/RoomCanvas.vue'
+
+definePageMeta({ middleware: 'auth' })
 </script>

@@ -29,6 +29,8 @@ import { useRouter } from 'vue-router'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useStorageStore } from '~/stores/storageStore'
 
+definePageMeta({ middleware: 'auth' })
+
 const router = useRouter()
 // Opens the read-only view page
 function goView() { router.push('/view') }
