@@ -38,6 +38,17 @@ function applyCors(req, res, origin) {
 
 const cfg = loadConfig()
 
+// Writes a QA log entry without failing the request on error
+async function logQA(req, { userId = null, action, details = null, level = 'info' }) {
+  try {
+    const ip = (req.headers['x-forwarded-for']?.split(',')[0]?.trim()) || req.socket?.remoteAddress || null
+    const userAgent = req.headers['user-agent'] || null
+    await prisma.qALog.create({ data: { userId, action, level, details, ip, userAgent } })
+  } catch (_) {
+    // ignore logging failures
+  }
+}
+
 // Returns the authenticated user or null
 async function getAuthUser(req) {
   const cookies = parseCookies(req)
@@ -89,6 +100,7 @@ const server = http.createServer(async (req, res) => {
     const user = await prisma.user.create({ data: { email, passwordHash, name } })
     const token = await signToken({ uid: user.id, email: user.email })
     res.setHeader('Set-Cookie', await makeSessionCookie(token))
+    await logQA(req, { userId: user.id, action: 'auth.register', details: { email } })
     return sendJson(res, 201, { ok: true, user: { id: user.id, email: user.email, name: user.name } })
   }
 
@@ -104,12 +116,15 @@ const server = http.createServer(async (req, res) => {
     if (!ok) return sendJson(res, 401, { ok: false, error: 'Invalid credentials' })
     const token = await signToken({ uid: user.id, email: user.email })
     res.setHeader('Set-Cookie', await makeSessionCookie(token))
+    await logQA(req, { userId: user.id, action: 'auth.login', details: { email } })
     return sendJson(res, 200, { ok: true, user: { id: user.id, email: user.email, name: user.name } })
   }
 
   // Auth: logout (clear cookie)
   if (method === 'POST' && url.pathname === '/api/auth/logout') {
+    const user = await getAuthUser(req)
     res.setHeader('Set-Cookie', await clearSessionCookie())
+    await logQA(req, { userId: user?.id ?? null, action: 'auth.logout' })
     return sendJson(res, 200, { ok: true })
   }
 
@@ -133,6 +148,7 @@ const server = http.createServer(async (req, res) => {
       orderBy: { id: 'asc' },
       select: { id: true, name: true, createdAt: true, updatedAt: true }
     })
+    await logQA(req, { userId: user.id, action: 'rooms.list', details: { count: rooms.length } })
     return sendJson(res, 200, { ok: true, rooms })
   }
 
@@ -141,6 +157,7 @@ const server = http.createServer(async (req, res) => {
     const body = await parseJson(req)
     const name = String(body.name || 'Minu tuba')
     const room = await prisma.room.create({ data: { userId: user.id, name } })
+    await logQA(req, { userId: user.id, action: 'rooms.create', details: { roomId: room.id } })
     return sendJson(res, 201, { ok: true, room })
   }
 
@@ -156,6 +173,7 @@ const server = http.createServer(async (req, res) => {
       orderBy: { id: 'asc' },
       include: { items: true }
     })
+    await logQA(req, { userId: user.id, action: 'units.list', details: { roomId, count: units.length } })
     return sendJson(res, 200, { ok: true, units })
   }
 
@@ -177,6 +195,7 @@ const server = http.createServer(async (req, res) => {
       name: body.name ? String(body.name) : null
     }
     const unit = await prisma.storageUnit.create({ data })
+    await logQA(req, { userId: user.id, action: 'units.create', details: { roomId, unitId: unit.id, type: unit.type } })
     return sendJson(res, 201, { ok: true, unit })
   }
 
@@ -192,6 +211,7 @@ const server = http.createServer(async (req, res) => {
     if (!unit || unit.room.userId !== user.id) return sendJson(res, 404, { ok: false, error: 'Unit not found' })
     if (method === 'DELETE') {
       await prisma.storageUnit.delete({ where: { id: unitId } })
+      await logQA(req, { userId: user.id, action: 'units.delete', details: { unitId } })
       return sendJson(res, 200, { ok: true })
     }
     const body = await parseJson(req)
@@ -200,6 +220,7 @@ const server = http.createServer(async (req, res) => {
       if (k in body) patch[k] = body[k]
     }
     const updated = await prisma.storageUnit.update({ where: { id: unitId }, data: patch })
+    await logQA(req, { userId: user.id, action: 'units.update', details: { unitId, patchKeys: Object.keys(patch) } })
     return sendJson(res, 200, { ok: true, unit: updated })
   }
 
@@ -211,6 +232,7 @@ const server = http.createServer(async (req, res) => {
     const unit = await prisma.storageUnit.findUnique({ include: { room: true }, where: { id: unitId } })
     if (!unit || unit.room.userId !== user.id) return sendJson(res, 404, { ok: false, error: 'Unit not found' })
     const items = await prisma.item.findMany({ where: { unitId }, orderBy: { id: 'asc' } })
+    await logQA(req, { userId: user.id, action: 'items.list', details: { unitId, count: items.length } })
     return sendJson(res, 200, { ok: true, items })
   }
 
@@ -221,6 +243,7 @@ const server = http.createServer(async (req, res) => {
     if (!unit || unit.room.userId !== user.id) return sendJson(res, 404, { ok: false, error: 'Unit not found' })
     const body = await parseJson(req)
     const item = await prisma.item.create({ data: { unitId, name: String(body.name || 'Ese'), quantity: Number(body.quantity || 1) } })
+    await logQA(req, { userId: user.id, action: 'items.create', details: { unitId, itemId: item.id } })
     return sendJson(res, 201, { ok: true, item })
   }
 
@@ -236,12 +259,14 @@ const server = http.createServer(async (req, res) => {
     if (!item || item.unit.room.userId !== user.id) return sendJson(res, 404, { ok: false, error: 'Item not found' })
     if (method === 'DELETE') {
       await prisma.item.delete({ where: { id: itemId } })
+      await logQA(req, { userId: user.id, action: 'items.delete', details: { itemId } })
       return sendJson(res, 200, { ok: true })
     }
     const body = await parseJson(req)
     const patch = {}
     for (const k of ['name','quantity']) { if (k in body) patch[k] = body[k] }
     const updated = await prisma.item.update({ where: { id: itemId }, data: patch })
+    await logQA(req, { userId: user.id, action: 'items.update', details: { itemId, patchKeys: Object.keys(patch) } })
     return sendJson(res, 200, { ok: true, item: updated })
   }
 
