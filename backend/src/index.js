@@ -38,6 +38,31 @@ function applyCors(req, res, origin) {
 
 const cfg = loadConfig()
 
+// Returns the authenticated user or null
+async function getAuthUser(req) {
+  const cookies = parseCookies(req)
+  const cookieName = process.env.SESSION_COOKIE_NAME || 'rm_session'
+  const token = cookies[cookieName]
+  if (!token) return null
+  const payload = await verifyToken(token)
+  if (!payload?.uid) return null
+  const user = await prisma.user.findUnique({
+    where: { id: Number(payload.uid) },
+    select: { id: true, email: true, name: true }
+  })
+  return user || null
+}
+
+// Ensures the request has an authenticated user; sends 401 otherwise
+async function requireAuth(req, res) {
+  const user = await getAuthUser(req)
+  if (!user) {
+    sendJson(res, 401, { ok: false, error: 'Unauthorized' })
+    return null
+  }
+  return user
+}
+
 const server = http.createServer(async (req, res) => {
   // Await config if it is a promise (module import behavior)
   const { CORS_ORIGIN, NODE_ENV } = await cfg
@@ -98,6 +123,126 @@ const server = http.createServer(async (req, res) => {
     if (!payload?.uid) return sendJson(res, 200, { ok: true, user: null })
     const user = await prisma.user.findUnique({ where: { id: Number(payload.uid) }, select: { id: true, email: true, name: true } })
     return sendJson(res, 200, { ok: true, user })
+  }
+
+  // ---------- Rooms (user-scoped) ----------
+  if (url.pathname === '/api/rooms' && method === 'GET') {
+    const user = await requireAuth(req, res); if (!user) return
+    const rooms = await prisma.room.findMany({
+      where: { userId: user.id },
+      orderBy: { id: 'asc' },
+      select: { id: true, name: true, createdAt: true, updatedAt: true }
+    })
+    return sendJson(res, 200, { ok: true, rooms })
+  }
+
+  if (url.pathname === '/api/rooms' && method === 'POST') {
+    const user = await requireAuth(req, res); if (!user) return
+    const body = await parseJson(req)
+    const name = String(body.name || 'Minu tuba')
+    const room = await prisma.room.create({ data: { userId: user.id, name } })
+    return sendJson(res, 201, { ok: true, room })
+  }
+
+  // /api/rooms/:roomId/units
+  const roomUnitsMatch = url.pathname.match(/^\/api\/rooms\/(\d+)\/units$/)
+  if (roomUnitsMatch && method === 'GET') {
+    const user = await requireAuth(req, res); if (!user) return
+    const roomId = Number(roomUnitsMatch[1])
+    const room = await prisma.room.findFirst({ where: { id: roomId, userId: user.id } })
+    if (!room) return sendJson(res, 404, { ok: false, error: 'Room not found' })
+    const units = await prisma.storageUnit.findMany({
+      where: { roomId },
+      orderBy: { id: 'asc' },
+      include: { items: true }
+    })
+    return sendJson(res, 200, { ok: true, units })
+  }
+
+  if (roomUnitsMatch && method === 'POST') {
+    const user = await requireAuth(req, res); if (!user) return
+    const roomId = Number(roomUnitsMatch[1])
+    const room = await prisma.room.findFirst({ where: { id: roomId, userId: user.id } })
+    if (!room) return sendJson(res, 404, { ok: false, error: 'Room not found' })
+    const body = await parseJson(req)
+    const data = {
+      roomId,
+      type: body.type,
+      x: Number(body.x || 0),
+      y: Number(body.y || 0),
+      w: Number(body.w || 56),
+      h: Number(body.h || 56),
+      rotation: Number(body.rotation || 0),
+      emoji: String(body.emoji || '📦'),
+      name: body.name ? String(body.name) : null
+    }
+    const unit = await prisma.storageUnit.create({ data })
+    return sendJson(res, 201, { ok: true, unit })
+  }
+
+  // PATCH/DELETE unit by id: /api/units/:unitId
+  const unitMatch = url.pathname.match(/^\/api\/units\/(\d+)$/)
+  if (unitMatch && (method === 'PATCH' || method === 'DELETE')) {
+    const user = await requireAuth(req, res); if (!user) return
+    const unitId = Number(unitMatch[1])
+    const unit = await prisma.storageUnit.findUnique({
+      where: { id: unitId },
+      include: { room: { select: { userId: true } } }
+    })
+    if (!unit || unit.room.userId !== user.id) return sendJson(res, 404, { ok: false, error: 'Unit not found' })
+    if (method === 'DELETE') {
+      await prisma.storageUnit.delete({ where: { id: unitId } })
+      return sendJson(res, 200, { ok: true })
+    }
+    const body = await parseJson(req)
+    const patch = {}
+    for (const k of ['x','y','w','h','rotation','emoji','name','type']) {
+      if (k in body) patch[k] = body[k]
+    }
+    const updated = await prisma.storageUnit.update({ where: { id: unitId }, data: patch })
+    return sendJson(res, 200, { ok: true, unit: updated })
+  }
+
+  // Items for a unit
+  const unitItemsMatch = url.pathname.match(/^\/api\/units\/(\d+)\/items$/)
+  if (unitItemsMatch && method === 'GET') {
+    const user = await requireAuth(req, res); if (!user) return
+    const unitId = Number(unitItemsMatch[1])
+    const unit = await prisma.storageUnit.findUnique({ include: { room: true }, where: { id: unitId } })
+    if (!unit || unit.room.userId !== user.id) return sendJson(res, 404, { ok: false, error: 'Unit not found' })
+    const items = await prisma.item.findMany({ where: { unitId }, orderBy: { id: 'asc' } })
+    return sendJson(res, 200, { ok: true, items })
+  }
+
+  if (unitItemsMatch && method === 'POST') {
+    const user = await requireAuth(req, res); if (!user) return
+    const unitId = Number(unitItemsMatch[1])
+    const unit = await prisma.storageUnit.findUnique({ include: { room: true }, where: { id: unitId } })
+    if (!unit || unit.room.userId !== user.id) return sendJson(res, 404, { ok: false, error: 'Unit not found' })
+    const body = await parseJson(req)
+    const item = await prisma.item.create({ data: { unitId, name: String(body.name || 'Ese'), quantity: Number(body.quantity || 1) } })
+    return sendJson(res, 201, { ok: true, item })
+  }
+
+  // PATCH/DELETE item by id: /api/items/:itemId
+  const itemMatch = url.pathname.match(/^\/api\/items\/(\d+)$/)
+  if (itemMatch && (method === 'PATCH' || method === 'DELETE')) {
+    const user = await requireAuth(req, res); if (!user) return
+    const itemId = Number(itemMatch[1])
+    const item = await prisma.item.findUnique({
+      where: { id: itemId },
+      include: { unit: { include: { room: true } } }
+    })
+    if (!item || item.unit.room.userId !== user.id) return sendJson(res, 404, { ok: false, error: 'Item not found' })
+    if (method === 'DELETE') {
+      await prisma.item.delete({ where: { id: itemId } })
+      return sendJson(res, 200, { ok: true })
+    }
+    const body = await parseJson(req)
+    const patch = {}
+    for (const k of ['name','quantity']) { if (k in body) patch[k] = body[k] }
+    const updated = await prisma.item.update({ where: { id: itemId }, data: patch })
+    return sendJson(res, 200, { ok: true, item: updated })
   }
 
   // 404 fallback
