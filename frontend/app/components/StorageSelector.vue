@@ -106,12 +106,12 @@ function snapRectInsideRoom(x:number,y:number,w:number,h:number,rot:number){
 }
 
 // Quickly adds a unit and snaps it inside the room
-function quickAdd(item: { type: StorageType, emoji: string }) {
-  const id = store.addUnit(item.type, 40, 40, item.emoji)
+async function quickAdd(item: { type: StorageType, emoji: string }) {
+  const id = await store.addUnit(item.type, 40, 40, item.emoji)
   const unit = store.items.find(i => i.id === id)
   if (!unit) return
   const pos = snapRectInsideRoom(unit.x, unit.y, unit.w, unit.h, unit.rotation)
-  store.updatePos(id, pos.x, pos.y)
+  await store.updatePos(id, pos.x, pos.y)
 }
 </script>
 

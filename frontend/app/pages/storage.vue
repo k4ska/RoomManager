@@ -41,7 +41,10 @@ const selectedId = ref<number | null>(null)
 // Stores the selected unit id
 function setSelected(id: number | null){ selectedId.value = id }
 // Installs bridge to update selection from canvas
-onMounted(() => { (window as any).__rm_setSelected = setSelected })
+onMounted(async () => {
+  (window as any).__rm_setSelected = setSelected
+  try { await store.ensureRoom(); await store.loadUnits() } catch {}
+})
 // Cleans up selection bridge on unmount
 onBeforeUnmount(() => { delete (window as any).__rm_setSelected })
 // Removes the currently selected unit
