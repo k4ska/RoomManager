@@ -1,6 +1,7 @@
 // Simple auth helper for calling backend auth endpoints
 export function useAuthApi() {
   const base = (import.meta as any).env?.NUXT_PUBLIC_API_BASE || process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
+  const userState = useState<any>('user', () => null)
 
   // Calls POST /api/auth/login
   async function login(email: string, password: string) {
@@ -10,7 +11,9 @@ export function useAuthApi() {
       credentials: 'include',
       body: JSON.stringify({ email, password })
     })
-    return res.json()
+    const data = await res.json()
+    if (data?.ok && data.user) userState.value = data.user
+    return data
   }
 
   // Calls POST /api/auth/register
@@ -21,7 +24,9 @@ export function useAuthApi() {
       credentials: 'include',
       body: JSON.stringify({ email, password, name })
     })
-    return res.json()
+    const data = await res.json()
+    if (data?.ok && data.user) userState.value = data.user
+    return data
   }
 
   // Calls POST /api/auth/logout
@@ -30,7 +35,9 @@ export function useAuthApi() {
       method: 'POST',
       credentials: 'include'
     })
-    return res.json()
+    const data = await res.json()
+    if (data?.ok) userState.value = null
+    return data
   }
 
   // Calls GET /api/auth/me
@@ -39,9 +46,10 @@ export function useAuthApi() {
       method: 'GET',
       credentials: 'include'
     })
-    return res.json()
+    const data = await res.json()
+    if (data?.ok && 'user' in data) userState.value = data.user
+    return data
   }
 
   return { login, register, logout, me }
 }
-
