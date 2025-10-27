@@ -140,6 +140,28 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { ok: true, user })
   }
 
+  // -------- Room shape (persist editor polygon) --------
+  if (url.pathname === '/api/room-shape' && method === 'GET') {
+    const user = await requireAuth(req, res); if (!user) return
+    const room = await prisma.room.findFirst({ where: { userId: user.id }, select: { id: true, shape: true } })
+    if (!room) {
+      const created = await prisma.room.create({ data: { userId: user.id, name: 'Minu tuba' } })
+      return sendJson(res, 200, { ok: true, shape: null, roomId: created.id })
+    }
+    return sendJson(res, 200, { ok: true, shape: room.shape ?? null, roomId: room.id })
+  }
+
+  if (url.pathname === '/api/room-shape' && method === 'PATCH') {
+    const user = await requireAuth(req, res); if (!user) return
+    const body = await parseJson(req)
+    const points = Array.isArray(body?.points) ? body.points : null
+    if (!points) return sendJson(res, 400, { ok: false, error: 'points required' })
+    let room = await prisma.room.findFirst({ where: { userId: user.id }, select: { id: true } })
+    if (!room) room = await prisma.room.create({ data: { userId: user.id, name: 'Minu tuba' }, select: { id: true } })
+    const updated = await prisma.room.update({ where: { id: room.id }, data: { shape: points }, select: { id: true } })
+    return sendJson(res, 200, { ok: true, roomId: updated.id })
+  }
+
   // ---------- Rooms (user-scoped) ----------
   if (url.pathname === '/api/rooms' && method === 'GET') {
     const user = await requireAuth(req, res); if (!user) return

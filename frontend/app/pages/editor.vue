@@ -21,6 +21,12 @@
 <script setup lang="ts">
 import Toolbar from '~/components/Toolbar.vue'
 import RoomCanvas from '~/components/RoomCanvas.vue'
+import { onMounted, onBeforeUnmount } from 'vue'
+import { useRoomShapeStore } from '~/stores/roomShape'
 
 definePageMeta({ middleware: 'auth' })
+
+const shape = useRoomShapeStore()
+onMounted(() => { shape.loadFromServer().catch(() => {}) })
+onBeforeUnmount(() => { shape.saveToServer().catch(() => {}) })
 </script>

@@ -1,5 +1,5 @@
 // Loads environment variables with simple defaults
-export function loadConfig() {
+export async function loadConfig() {
   // Optional: try to load .env if dotenv is available
   try {
     const dotenv = await import('dotenv')

@@ -8,6 +8,11 @@
   </main>
 </template>
 
+<script setup lang="ts">
+// Require login on the landing page as well
+definePageMeta({ middleware: 'auth' })
+</script>
+
 <style scoped>
 .landing {
   min-height: 100vh;

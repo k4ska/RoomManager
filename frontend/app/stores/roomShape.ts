@@ -29,11 +29,13 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
       x: clamp(x, 0, stage.width),
       y: clamp(y, 0, stage.height)
     }
+    scheduleSave()
   }
 
   // Resets the room shape to default rectangle
   function resetShape() {
     setShape('rectangle')
+    scheduleSave()
   }
 
   // Sets the room shape and updates corner points
@@ -67,6 +69,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
         { x: w * 0.15, y: h * 0.8 }
       ]
     }
+    scheduleSave()
   }
 
   // Toggles the add-point mode
@@ -111,6 +114,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
       }
     }
     points.value.splice(insertIndex, 0, { x: clamp(x, 0, stage.width), y: clamp(y, 0, stage.height) })
+    scheduleSave()
   }
 
   return {
@@ -125,6 +129,37 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     toggleAddPointMode,
     openShapeModal,
     closeShapeModal,
-    insertPointOnNearestEdge
+    insertPointOnNearestEdge,
+    // Loads saved shape from backend (if any)
+    async loadFromServer() {
+      try {
+        const base = (import.meta as any).env?.NUXT_PUBLIC_API_BASE || (process.env as any)?.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
+        const res = await fetch(`${base}/api/room-shape`, { credentials: 'include' })
+        const data = await res.json()
+        if (data?.ok && Array.isArray(data.shape)) {
+          points.value = data.shape
+        }
+      } catch {}
+    },
+    // Saves current shape to backend
+    async saveToServer() {
+      try {
+        const base = (import.meta as any).env?.NUXT_PUBLIC_API_BASE || (process.env as any)?.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
+        await fetch(`${base}/api/room-shape`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ points: points.value })
+        })
+      } catch {}
+    },
+    _scheduleSave: scheduleSave
+  }
+  // Debounce helper used by mutators
+  let saveTimer: any = null
+  function scheduleSave() {
+    if (typeof window === 'undefined') return
+    clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => { (useRoomShapeStore() as any).saveToServer?.() }, 600)
   }
 })
