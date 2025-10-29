@@ -1,7 +1,7 @@
 export default defineNuxtConfig({
   devtools: { enabled: true },
   modules: ['@nuxt/ui', '@pinia/nuxt'],
-  nitro: { compatibilityDate: '2025-10-08' },
+  nitro: { compatibilityDate: '2025-10-29' },
 
   runtimeConfig: {
     public: {
