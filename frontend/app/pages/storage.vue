@@ -28,10 +28,14 @@ import StorageCanvas from '~/components/StorageCanvas.vue'
 import { useRouter } from 'vue-router'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useStorageStore } from '~/stores/storageStore'
+import { useRoomShapeStore } from '~/stores/roomShape'
+
+definePageMeta({ middleware: 'auth' })
 
 const router = useRouter()
-// Opens the read-only view page
-function goView() { router.push('/view') }
+const shape = useRoomShapeStore()
+// Opens the read-only view page (save shape just in case)
+async function goView() { try { await shape.saveToServer() } catch {} ; router.push('/view') }
 
 const store = useStorageStore()
 const hasItems = computed(() => store.items.length > 0)
@@ -39,7 +43,14 @@ const selectedId = ref<number | null>(null)
 // Stores the selected unit id
 function setSelected(id: number | null){ selectedId.value = id }
 // Installs bridge to update selection from canvas
-onMounted(() => { (window as any).__rm_setSelected = setSelected })
+onMounted(async () => {
+  (window as any).__rm_setSelected = setSelected
+  try {
+    await shape.loadFromServer()
+    await store.ensureRoom();
+    await store.loadUnits()
+  } catch {}
+})
 // Cleans up selection bridge on unmount
 onBeforeUnmount(() => { delete (window as any).__rm_setSelected })
 // Removes the currently selected unit

@@ -21,10 +21,18 @@
 import ViewCanvas from '~/components/ViewCanvas.vue'
 import ObjectPopup from '~/components/ObjectPopup.vue'
 import { ref } from 'vue'
+import { onMounted } from 'vue'
+import { useRoomShapeStore } from '~/stores/roomShape'
+
+definePageMeta({ middleware: 'auth' })
 const selectedId = ref<number | null>(null)
 const showPopup = ref(false)
 // Opens the item editor popup
 function openEditor(){ showPopup.value = true }
+
+// Ensure saved room shape is loaded for read-only view
+const shape = useRoomShapeStore()
+onMounted(() => { shape.loadFromServer().catch(() => {}) })
 </script>
 
 <style scoped>

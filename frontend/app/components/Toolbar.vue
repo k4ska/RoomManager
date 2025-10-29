@@ -19,7 +19,7 @@ const newRoom = () => { store.resetShape(); storage.clear() }
 // Toggles point-adding mode for the room shape
 const toggleAdd = () => store.toggleAddPointMode()
 // Navigates to the storage layout page
-const save = () => router.push('/storage')
+const save = async () => { try { await store.saveToServer() } catch {} ; router.push('/storage') }
 </script>
 
 <style scoped>

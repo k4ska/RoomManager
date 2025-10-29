@@ -144,7 +144,7 @@ onMounted(() => {
   if (!container) return
 
   container.addEventListener('dragover', (e: DragEvent) => e.preventDefault())
-  container.addEventListener('drop', (e: DragEvent) => {
+  container.addEventListener('drop', async (e: DragEvent) => {
     e.preventDefault()
     let type = 'box' as StorageType
     let emoji: string | undefined
@@ -165,10 +165,10 @@ onMounted(() => {
     const y = clampValue(e.clientY - rect.top, 0, room.stage.height)
 
     // Place by top-left, then snap fully inside the room
-    const id = storage.addUnit(type, x, y, emoji)
+    const id = await storage.addUnit(type, x, y, emoji)
     const item = storage.items.find(i => i.id === id)!
     const pos = snapRectInsideRoom(item.x, item.y, item.w, item.h, item.rotation)
-    storage.updatePos(id, pos.x, pos.y)
+    await storage.updatePos(id, pos.x, pos.y)
     selectedId.value = id
     attachTransformer()
     if (typeof window !== 'undefined') (window as any).__rm_setSelected?.(id)
