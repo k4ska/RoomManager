@@ -44,12 +44,13 @@ function linesFor(item: { contents?: { name: string; quantity: number }[] }) {
             <v-rect :config="{ x: -item.w/2, y: -item.h/2, width: item.w, height: item.h, cornerRadius: 8, stroke: props.selectedId===item.id ? '#93c5fd' : undefined, strokeWidth: props.selectedId===item.id ? 2 : 0 }" />
             <v-text :config="{ x: 0, y: 0, offsetX: 10, offsetY: 12, text: item.emoji, fontSize: 20 }" />
 
-            <!-- Hover tooltip with a short list of contents -->
-            <v-label v-if="hoverId===item.id" :config="{ x: item.w/2 + 8, y: -item.h/2 - 8, opacity: 0.95 }">
-              <v-tag :config="{ fill: 'rgba(15,23,42,0.9)', stroke: '#334155', cornerRadius: 8, shadowColor: 'black', shadowBlur: 8, shadowOpacity: 0.25 }" />
-              <v-text :config="{ text: (item.name ? (item.name + '\n') : '') + linesFor(item), fontSize: 14, padding: 8, fill: '#e5e7eb', lineHeight: 1.2 }" />
-            </v-label>
           </v-group>
+
+          <!-- Hover tooltip rendered with absolute coords so it doesn't move/rotate with the object -->
+          <v-label v-if="hoverId===item.id" :config="{ x: item.x + item.w + 8, y: item.y - 8, opacity: 0.95 }">
+            <v-tag :config="{ fill: 'rgba(15,23,42,0.9)', stroke: '#334155', cornerRadius: 8, shadowColor: 'black', shadowBlur: 8, shadowOpacity: 0.25 }" />
+            <v-text :config="{ text: (item.name ? (item.name + '\n') : '') + linesFor(item), fontSize: 14, padding: 8, fill: '#e5e7eb', lineHeight: 1.2 }" />
+          </v-label>
         </template>
       </v-layer>
     </v-stage>
