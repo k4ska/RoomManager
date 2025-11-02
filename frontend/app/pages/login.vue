@@ -35,7 +35,7 @@ async function onSubmit() {
       error.value = res?.error || 'Sisselogimine ebaõnnestus'
       return
     }
-    router.push('/storage')
+    router.push('/')
   } catch (e) {
     error.value = 'Võrguviga'
   } finally {
