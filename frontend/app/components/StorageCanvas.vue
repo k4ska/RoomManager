@@ -293,7 +293,17 @@ function onTransformEnd(id: number, e: any) {
               stroke: (hoverId===item.id || selectedId===item.id) ? '#93c5fd' : '#334155',
               strokeWidth: (hoverId===item.id || selectedId===item.id) ? 2 : 1
             }" />
-            <v-text :config="{ x: 0, y: 0, offsetX: EMOJI_SIZE/2, offsetY: EMOJI_SIZE/2, text: item.emoji, fontSize: EMOJI_SIZE }" />
+            <!-- Center emoji inside the unit: use the unit's width/height and align center -->
+            <v-text :config="{
+              x: -item.w/2,
+              y: -item.h/2,
+              width: item.w,
+              height: item.h,
+              align: 'center',
+              verticalAlign: 'middle',
+              text: item.emoji,
+              fontSize: Math.max(EMOJI_SIZE, Math.min(item.w, item.h) * 0.5)
+            }" />
           </v-group>
         </template>
 
