@@ -3,6 +3,7 @@
     <div class="container">
       <div class="title">Ruumihaldur</div>
       <div class="actions">
+        <button class="btn-home" @click.prevent="router.push('/')">Avaleht</button>
         <button v-if="user" class="btn-logout" @click="onLogout">Logi välja</button>
       </div>
     </div>
@@ -59,4 +60,14 @@ async function onLogout() {
   cursor: pointer;
 }
 .btn-logout:hover { background: rgba(148,163,184,0.06); }
+.btn-home {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid rgba(148,163,184,0.12);
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-right: 8px;
+}
+.btn-home:hover { background: rgba(148,163,184,0.04); }
 </style>
