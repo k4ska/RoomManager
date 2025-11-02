@@ -35,7 +35,7 @@ async function onSubmit() {
       error.value = res?.error || 'Sisselogimine ebaõnnestus'
       return
     }
-    router.push('/storage')
+    router.push('/')
   } catch (e) {
     error.value = 'Võrguviga'
   } finally {
@@ -45,14 +45,63 @@ async function onSubmit() {
 </script>
 
 <style scoped>
-.auth-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
-.card { width: 420px; max-width: 95vw; background: rgba(17,24,39,0.85); border: 1px solid #334155; border-radius: 16px; padding: 18px; }
-h1 { margin: 0 0 10px 0; font-size: 1.4rem; }
-.lbl { display: block; margin: 10px 0 6px; font-size: .95rem; color: #cbd5e1; }
-.inp { width: 100%; box-sizing: border-box; background: rgba(148,163,184,0.12); border: 1px solid #334155; border-radius: 10px; padding: 9px 10px; color: var(--text); }
-.btn { margin-top: 14px; width: 100%; background: var(--accent); color: #062217; border: none; padding: 10px 12px; border-radius: 10px; font-weight: 700; cursor: pointer; }
-.btn:disabled { opacity: .6; cursor: not-allowed; }
-.hint { margin-top: 10px; color: #9ca3af; font-size: .95rem; }
-.error { color: #f87171; font-size: .95rem; margin-top: 8px; }
+.auth-wrap { 
+min-height: 100vh; 
+display: grid; 
+place-items: center; 
+padding: 24px; 
+}
+.card { 
+  width: 420px; 
+  max-width: 95vw; 
+  background: rgba(17,24,39,0.85); 
+  border: 1px solid #334155; 
+  border-radius: 16px; 
+  padding: 18px; 
+}
+h1 { 
+  margin: 0 0 10px 0; 
+  font-size: 1.4rem; 
+}
+.lbl { 
+  display: block; 
+  margin: 10px 0 6px; 
+  font-size: .95rem; 
+  color: #cbd5e1; 
+}
+.inp { 
+  width: 100%; 
+  box-sizing: border-box; 
+  background: rgba(148,163,184,0.12); 
+  border: 1px solid #334155; 
+  border-radius: 10px; 
+  padding: 9px 10px; 
+  color: var(--text); 
+}
+.btn { 
+  margin-top: 14px; 
+  width: 100%; 
+  background: var(--accent); 
+  color: #062217; 
+  border: none; 
+  padding: 10px 12px; 
+  border-radius: 10px; 
+  font-weight: 700; 
+  cursor: pointer; 
+}
+.btn:disabled { 
+  opacity: .6; 
+  cursor: not-allowed; 
+}
+.hint { 
+  margin-top: 10px; 
+  color: #9ca3af; 
+  font-size: .95rem; 
+}
+.error { 
+  color: #f87171; 
+  font-size: .95rem; 
+  margin-top: 8px; 
+}
 </style>
 

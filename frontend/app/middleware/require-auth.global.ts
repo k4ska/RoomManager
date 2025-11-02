@@ -1,8 +1,32 @@
 // Global auth guard: redirects any route to /login when unauthenticated
 export default defineNuxtRouteMiddleware(async (to) => {
-  // Allow auth pages without redirect loop
-  if (to.path === '/login' || to.path === '/register') return
+  // If user tries to access auth pages while already authenticated, redirect to homepage
+  if (to.path === '/login' || to.path === '/register') {
+    // SSR: check cookie
+    if (import.meta.server) {
+      const sess = useCookie<string | null>('rm_session')
+      if (sess.value) return navigateTo('/')
+      return
+    }
 
+    // Client: check in-memory state or call /me
+    const userState = useState<any>('user', () => null)
+    if (userState.value) return navigateTo('/')
+    const { useAuthApi } = await import('~/composables/useAuth')
+    const { me } = useAuthApi()
+    try {
+      const res = await me()
+      if (res?.user) {
+        userState.value = res.user
+        return navigateTo('/')
+      }
+    } catch {}
+
+    // Not authenticated -> allow access to /login or /register
+    return
+  }
+
+  // For all other routes: require authentication as before
   // 1) SSR guard: check cookie directly on the server request
   if (import.meta.server) {
     const sess = useCookie<string | null>('rm_session')

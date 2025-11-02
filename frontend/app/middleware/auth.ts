@@ -1,7 +1,6 @@
 // Redirects to /login when user is not authenticated
 export default defineNuxtRouteMiddleware(async (to) => {
-  // If landing page is opened, always show the login screen first
-  if (to.path === '/') return navigateTo('/login')
+  // Redirect to /login when user is not authenticated
   // Only run this check on the client for simplicity
   if (import.meta.server) return
   const userState = useState<any>('user', () => null)
