@@ -51,10 +51,19 @@ watch(unit, (u) => {
 const add = () => rows.value.push({ name: 'Ese', quantity: 1 })
 // Removes a row at index
 const remove = (i: number) => rows.value.splice(i, 1)
-// Increases quantity for a row
-const inc = (i: number) => rows.value[i].quantity++
-// Decreases quantity for a row (min 1)
-const dec = (i: number) => rows.value[i].quantity = Math.max(1, rows.value[i].quantity - 1)
+// Increases quantity for a row (defensive: guard against invalid index)
+const inc = (i: number) => {
+  const r = rows.value[i]
+  if (!r) return
+  r.quantity = Number.isInteger(r.quantity) ? r.quantity + 1 : 1
+}
+// Decreases quantity for a row (min 1) with defensive checks
+const dec = (i: number) => {
+  const r = rows.value[i]
+  if (!r) return
+  const cur = Number.isInteger(r.quantity) ? r.quantity : 1
+  r.quantity = Math.max(1, cur - 1)
+}
 // Validates and saves changes to the store
 const save = () => {
   const valid = rows.value.every(r => Number.isInteger(r.quantity) && r.quantity >= 1)
