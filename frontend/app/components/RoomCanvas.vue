@@ -50,9 +50,18 @@ function handleLayerClick(e: any) {
 
 <template>
   <div class="canvas-wrap">
-    <v-stage :config="{ width: store.stage.width, height: store.stage.height }">
+    <v-stage :config="{
+      width: store.stage.width,
+      height: store.stage.height
+    }">
       <v-layer @click="handleLayerClick">
-        <v-rect :config="{ x: 0, y: 0, width: store.stage.width, height: store.stage.height, fill: '#0b1222' }" />
+        <v-rect :config="{
+          x: 0,
+          y: 0,
+          width: store.stage.width,
+          height: store.stage.height,
+          fill: '#0b1222'
+        }" />
         <v-line
           :points="store.points.flatMap(p => [p.x, p.y])"
           :closed="true"
@@ -63,7 +72,15 @@ function handleLayerClick(e: any) {
         <v-circle
           v-for="(p, i) in store.points"
           :key="i"
-          :config="{ x: p.x, y: p.y, radius: 7, fill: '#10b981', stroke: '#052e24', strokeWidth: 1.5, draggable: true }"
+          :config="{
+            x: p.x,
+            y: p.y,
+            radius: 7,
+            fill: '#10b981',
+            stroke: '#052e24',
+            strokeWidth: 1.5,
+            draggable: true
+          }"
           @dragmove="e => {
             const newX = e.target.x()
             const newY = e.target.y()

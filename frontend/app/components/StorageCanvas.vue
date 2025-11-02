@@ -240,9 +240,19 @@ function onTransformEnd(id: number, e: any) {
 
 <template>
   <div class="canvas-wrap">
-    <v-stage ref="stageRef" :config="{ width: room.stage.width, height: room.stage.height }">
+    <v-stage ref="stageRef" :config="{
+        width: room.stage.width,
+        height: room.stage.height
+      }">
       <v-layer ref="layerRef">
-        <v-rect :config="{ id: 'bg', x: 0, y: 0, width: room.stage.width, height: room.stage.height, fill: '#0b1222' }" @mousedown="clearSelection" />
+        <v-rect :config="{
+            id: 'bg',
+            x: 0,
+            y: 0,
+            width: room.stage.width,
+            height: room.stage.height,
+            fill: '#0b1222'
+          }" @mousedown="clearSelection" />
 
         <v-line
           :points="room.points.flatMap(p => [p.x, p.y])"
