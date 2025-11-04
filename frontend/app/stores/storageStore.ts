@@ -99,18 +99,8 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
-  async function deleteUnit(id: number) {
-  const index = items.value.findIndex(i => i.id === id)
-  if (index !== -1) {
-    items.value.splice(index, 1)
-    // Add backend API call:
-    const roomId = await ensureRoom()
-    await fetch(`${apiBase()}/api/rooms/${roomId}/units/${id}`, { 
-      method: 'DELETE',
-      credentials: 'include' 
-    })
-  }
-}
+  
+
 
   // Adds a new storage unit to the canvas
   async function addUnit(type: StorageType, x: number, y: number, emojiOverride?: string) {
