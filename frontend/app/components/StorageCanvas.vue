@@ -15,6 +15,7 @@ const hoverId = ref<number | null>(null)
 const MIN = 30 // minimum side length in pixels
 const EMOJI_SIZE = 24 // size of emoji inside the unit
 const WALL_MARGIN = 2 // minimum distance from walls in pixels
+const DELETE_BTN_SIZE = 24 // size of delete button
 
 // Returns value clamped between min and max
 function clampValue(v: number, min: number, max: number) {
@@ -137,6 +138,17 @@ function findClosestCenterInsideRoom(wantedCenter: { x: number; y: number }, w: 
   return { x: roomCenter.x, y: roomCenter.y }
 }
 
+// Deletes an item
+async function deleteItem(id: number) {
+  await storage.deleteUnit(id)
+  if (selectedId.value === id) {
+    clearSelection()
+  }
+  if (hoverId.value === id) {
+    hoverId.value = null
+  }
+}
+
 // Sets up drag-and-drop for adding new items to the canvas
 onMounted(() => {
   const node = stageRef.value?.getNode?.()
@@ -211,7 +223,7 @@ function onRectClick(id: number) {
 
 // Updates the item position after dragging ends
 function onDragEnd(id: number, e: any, item: any) {
-  const node = e.target // group
+  const node = e.target
   const cx = node.x()
   const cy = node.y()
   const x = cx - item.w / 2
@@ -225,7 +237,7 @@ function onDragEnd(id: number, e: any, item: any) {
 // Updates size and rotation after transforming ends
 function onTransformEnd(id: number, e: any) {
   const node = e.target
-  const scale = node.scaleX() || 1 // keepRatio=true ensures X==Y
+  const scale = node.scaleX() || 1
   const item = storage.items.find(i => i.id === id)!
   const side = Math.max(MIN, item.w * scale)
   node.scaleX(1)
@@ -303,7 +315,7 @@ function onTransformEnd(id: number, e: any) {
               stroke: (hoverId===item.id || selectedId===item.id) ? '#93c5fd' : '#334155',
               strokeWidth: (hoverId===item.id || selectedId===item.id) ? 2 : 1
             }" />
-            <!-- Center emoji inside the unit: use the unit's width/height and align center -->
+
             <v-text :config="{
               x: -item.w/2,
               y: -item.h/2,
@@ -314,6 +326,49 @@ function onTransformEnd(id: number, e: any) {
               text: item.emoji,
               fontSize: Math.max(EMOJI_SIZE, Math.min(item.w, item.h) * 0.5)
             }" />
+
+            <v-group
+              v-if="hoverId === item.id"
+              :config="{
+                x: item.w/2 - DELETE_BTN_SIZE/2,
+                y: -item.h/2 - DELETE_BTN_SIZE/2,
+                listening: true
+              }"
+              @click="(e) => { e.cancelBubble = true; deleteItem(item.id); }"
+              @tap="(e) => { e.cancelBubble = true; deleteItem(item.id); }"
+              @mousedown="(e) => e.cancelBubble = true"
+              @touchstart="(e) => e.cancelBubble = true"
+            >
+              <v-circle :config="{
+              x: 0,
+              y: 0,
+              radius: DELETE_BTN_SIZE/2,
+              fill: '#ef4444',
+              stroke: '#ffffff',
+              strokeWidth: 2,
+              shadowColor: '#000000',
+              shadowBlur: 4,
+              shadowOpacity: 0.3,
+              listening: true
+            }" 
+            @mouseenter="(e) => { e.target.fill('#dc2626'); e.target.getLayer().batchDraw(); }"
+            @mouseleave="(e) => { e.target.fill('#ef4444'); e.target.getLayer().batchDraw(); }"
+            />
+              
+              <v-text :config="{
+                x: -DELETE_BTN_SIZE/2,
+                y: -DELETE_BTN_SIZE/2,
+                width: DELETE_BTN_SIZE,
+                height: DELETE_BTN_SIZE,
+                text: '✕',
+                fontSize: 16,
+                fontStyle: 'bold',
+                fill: '#ffffff',
+                align: 'center',
+                verticalAlign: 'middle',
+                listening: false
+              }" />
+            </v-group>
           </v-group>
         </template>
 
@@ -340,4 +395,3 @@ function onTransformEnd(id: number, e: any) {
   justify-content: center; 
 }
 </style>
-

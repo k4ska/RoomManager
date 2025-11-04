@@ -99,6 +99,19 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
+  async function deleteUnit(id: number) {
+  const index = items.value.findIndex(i => i.id === id)
+  if (index !== -1) {
+    items.value.splice(index, 1)
+    // Add backend API call:
+    const roomId = await ensureRoom()
+    await fetch(`${apiBase()}/api/rooms/${roomId}/units/${id}`, { 
+      method: 'DELETE',
+      credentials: 'include' 
+    })
+  }
+}
+
   // Adds a new storage unit to the canvas
   async function addUnit(type: StorageType, x: number, y: number, emojiOverride?: string) {
     const meta = META[type]
@@ -141,6 +154,15 @@ export const useStorageStore = defineStore('storage', () => {
     try { await fetch(`${apiBase()}/api/units/${id}`, { method: 'DELETE', credentials: 'include' }) } catch {}
   }
 
+  async function deleteUnit(id: number) {
+  items.value = items.value.filter(i => i.id !== id)
+  try { 
+    await fetch(`${apiBase()}/api/units/${id}`, { 
+      method: 'DELETE', 
+      credentials: 'include' 
+    }) 
+  } catch {}
+}
   // Clears all units
   async function clear() {
     const ids = items.value.map(i => i.id)
@@ -187,5 +209,5 @@ export const useStorageStore = defineStore('storage', () => {
     it.contents.splice(index, 1)
   }
 
-  return { items, currentRoomId, ensureRoom, loadUnits, addUnit, updateUnit, updatePos, removeUnit, clear, setContents, addContent, removeContent }
+  return { items, currentRoomId, ensureRoom, loadUnits, addUnit, updateUnit, updatePos, removeUnit, clear, setContents, addContent, removeContent, deleteUnit }
 })
