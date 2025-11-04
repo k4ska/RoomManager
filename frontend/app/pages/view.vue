@@ -22,17 +22,25 @@ import ViewCanvas from '~/components/ViewCanvas.vue'
 import ObjectPopup from '~/components/ObjectPopup.vue'
 import { ref } from 'vue'
 import { onMounted } from 'vue'
+import { useStorageStore } from '~/stores/storageStore'
 import { useRoomShapeStore } from '~/stores/roomShape'
 
-definePageMeta({ middleware: 'auth' })
+// Vaateleht on avalik (kiire juurdepääs avalehelt)
 const selectedId = ref<number | null>(null)
 const showPopup = ref(false)
-// Opens the item editor popup
+// Avab esemete muutmise akna
 function openEditor(){ showPopup.value = true }
 
-// Ensure saved room shape is loaded for read-only view
+// Laeb salvestatud toakuju ja üksused ainult lugemiseks
 const shape = useRoomShapeStore()
-onMounted(() => { shape.loadFromServer().catch(() => {}) })
+const store = useStorageStore()
+onMounted(async () => {
+  try {
+    await shape.loadFromServer()
+    await store.ensureRoom()
+    await store.loadUnits()
+  } catch {}
+})
 </script>
 
 <style scoped>

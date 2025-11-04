@@ -28,11 +28,12 @@ async function onLogout() {
     const { useAuthApi } = await import('~/composables/useAuth')
     const { logout } = useAuthApi()
     await logout()
-  } catch (e) {
-    // ignore errors but continue to navigate
+  } finally {
+    // Nulli kasutaja olek igaks juhuks ja liigu /login
+    const userState = useState<any>('user', () => null)
+    userState.value = null
+    router.push('/login')
   }
-  // navigate to login page after logout
-  router.push('/login')
 }
 </script>
 

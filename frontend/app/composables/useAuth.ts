@@ -1,9 +1,9 @@
-// Simple auth helper for calling backend auth endpoints
+// Lihtne autentimise abifunktsioon backend-i auth-endpointide kutsumiseks
 export function useAuthApi() {
   const base = (import.meta as any).env?.NUXT_PUBLIC_API_BASE || process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
   const userState = useState<any>('user', () => null)
 
-  // Calls POST /api/auth/login
+  // Kutsub POST /api/auth/login
   async function login(email: string, password: string) {
     const res = await fetch(`${base}/api/auth/login`, {
       method: 'POST',
@@ -16,7 +16,7 @@ export function useAuthApi() {
     return data
   }
 
-  // Calls POST /api/auth/register
+  // Kutsub POST /api/auth/register
   async function register(email: string, password: string, name?: string) {
     const res = await fetch(`${base}/api/auth/register`, {
       method: 'POST',
@@ -29,18 +29,29 @@ export function useAuthApi() {
     return data
   }
 
-  // Calls POST /api/auth/logout
+  // Kutsub POST /api/auth/logout
   async function logout() {
-    const res = await fetch(`${base}/api/auth/logout`, {
-      method: 'POST',
-      credentials: 'include'
-    })
-    const data = await res.json()
-    if (data?.ok) userState.value = null
-    return data
+    try {
+      const res = await fetch(`${base}/api/auth/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      })
+      // Proovi lugeda vastust, kuid ära ebaõnnestu kui tühi
+      let ok = res.ok
+      try {
+        const data = await res.json()
+        ok = ok && !!data?.ok
+      } catch {}
+      // Igal juhul nulli kliendi olek, et UI peegeldaks väljalogimist
+      userState.value = null
+      return { ok }
+    } catch {
+      userState.value = null
+      return { ok: false }
+    }
   }
 
-  // Calls GET /api/auth/me
+  // Kutsub GET /api/auth/me
   async function me() {
     const res = await fetch(`${base}/api/auth/me`, {
       method: 'GET',

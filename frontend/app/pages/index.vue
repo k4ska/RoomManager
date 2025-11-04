@@ -10,15 +10,16 @@
     <div class="center">
       <div class="cta-group">
         <NuxtLink class="cta-btn" to="/editor">Loo uus ruum</NuxtLink>
-        <NuxtLink class="cta-btn" to="/">Vaata oma tube</NuxtLink>
+        <button class="cta-btn" @click="goView">Vaata oma tube</button>
       </div>
     </div>
   </main>
 </template>
 
 <script setup lang="ts">
-// Require login on the landing page as well
-definePageMeta({ middleware: 'auth' })
+// Landing page is public; auth is required on editor/storage routes
+// Always navigate to /view using Nuxt navigateTo
+const goView = () => navigateTo('/view')
 </script>
 
 <style scoped>

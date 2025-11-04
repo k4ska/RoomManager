@@ -1,2 +1,0 @@
-ALTER TABLE "Room" ADD COLUMN "shape" JSONB;
-

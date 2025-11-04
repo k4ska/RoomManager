@@ -18,7 +18,7 @@ namespace backend.Data
         {
             base.OnModelCreating(modelBuilder);
 
-            // Additional model configuration (indexes, relationships, conversions) can go here.
+            // Siia saab lisada mudelite täiendava konfiguratsiooni (indeksid, seosed, konversioonid).
         }
     }
 }

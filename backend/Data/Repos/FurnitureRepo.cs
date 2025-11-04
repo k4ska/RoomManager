@@ -12,7 +12,7 @@ namespace backend.Data.Repos
             _context = context;
         }
 
-        // CRUD - CREATE
+        // CRUD - LOOMINE
         public async Task<Furniture> SaveFurnitureToDb(Furniture furniture)
         {
             _context.Furniture.Add(furniture);
@@ -20,16 +20,16 @@ namespace backend.Data.Repos
             return furniture;
         }
 
-        // CRUD - READ
+        // CRUD - LUGEMINE
         public async Task<List<Furniture>> GetAllFurniture() => await _context.Furniture.ToListAsync();
 
-        // CRUD - UPDATE
+        // CRUD - UUENDAMINE
         // public async Task<Furniture?> UpdateFurnitureById(int id, Furniture updatedFurniture)
         // {
 
         // }
 
-        // CRUD - DELETE
+        // CRUD - KUSTUTAMINE
         public async Task<bool> DeleteFurnitureById(int id)
         {
             var furniture = await _context.Furniture.FindAsync(id);
