@@ -99,7 +99,10 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
-  // Lisab lõuendile uue hoiustamisüksuse
+  
+
+
+  // Adds a new storage unit to the canvas
   async function addUnit(type: StorageType, x: number, y: number, emojiOverride?: string) {
     const meta = META[type]
     const optimistic: StorageUnit = { id: idSeq++, type, x, y, w: meta.w, h: meta.h, rotation: 0, emoji: (emojiOverride ?? meta.emoji), name: (LABEL ? LABEL[type] : undefined), contents: [] }
@@ -124,7 +127,16 @@ export const useStorageStore = defineStore('storage', () => {
     // Defer server sync to saveToServer
   }
 
-  // Tühjendab kõik üksused
+  async function deleteUnit(id: number) {
+  items.value = items.value.filter(i => i.id !== id)
+  try { 
+    await fetch(`${apiBase()}/api/units/${id}`, { 
+      method: 'DELETE', 
+      credentials: 'include' 
+    }) 
+  } catch {}
+}
+  // Clears all units
   async function clear() {
     const ids = items.value.map(i => i.id)
     items.value = []
