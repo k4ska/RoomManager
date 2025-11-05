@@ -6,7 +6,7 @@
         <NuxtLink class="btn" to="/editor">Tagasi</NuxtLink>
         <button class="btn warn" :disabled="!selectedId" @click="removeSelected">Kustuta valitu</button>
         <button class="btn warn" :disabled="!hasItems" @click="removeAll">Kustuta kõik</button>
-        <button class="btn success" @click="goView">Salvesta → Vaade</button>
+        <button class="btn success" @click="goView">Salvesta ja vaade</button>
       </div>
     </header>
 
@@ -58,7 +58,7 @@ function setSelected(id: number | null) {
 
 // ✅ Install bridge to update selection from canvas
 onMounted(async () => {
-  (window as any).__rm_setSelected = setSelected
+  ;(window as any).__rm_setSelected = setSelected
   try {
     await shape.loadFromServer()
     await store.ensureRoom()
@@ -92,6 +92,30 @@ async function removeAll() {
     await store.clear()
     selectedId.value = null
   }
+}
+
+// Salvesta ainult (toa kuju + paigutus). Jää samale lehele
+async function saveOnly(): Promise<boolean> {
+  try {
+    await shape.saveToServer()
+    // Ensure room exists and refresh local id state
+    await store.ensureRoom()
+    const ok = await store.saveToServer()
+    if (!ok) { console.error('save failed'); return false }
+    // Sync from server to reflect canonical ids after save
+    await store.loadUnits()
+    return true
+  } catch (e) {
+    console.error('saveOnly failed', e)
+    return false
+  }
+}
+
+// Salvesta ja liigu vaatele
+async function goView() {
+  const ok = await saveOnly()
+  if (ok) router.push('/view')
+  else console.error('Salvestamine ebaõnnestus')
 }
 </script>
 
@@ -162,3 +186,4 @@ async function removeAll() {
   background: var(--accent-hover);
 }
 </style>
+

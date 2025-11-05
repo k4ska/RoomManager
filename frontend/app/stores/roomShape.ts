@@ -18,27 +18,25 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
   const addPointMode = ref(false)
   const showShapeModal = ref(false)
 
-  // Clamps a value between min and max
+  // Piirab väärtuse vahemikku [min, max]
   function clamp(v: number, min: number, max: number) {
     return Math.max(min, Math.min(max, v))
   }
 
-  // Updates a point position while keeping it within stage bounds
+  // Uuendab punkti asukohta, hoides seda lava piirides
   function updatePoint(index: number, x: number, y: number) {
     points.value[index] = {
       x: clamp(x, 0, stage.width),
       y: clamp(y, 0, stage.height)
     }
-    scheduleSave()
   }
 
-  // Resets the room shape to default rectangle
+  // Lähtestab toakuju vaikimisi ristkülikuks
   function resetShape() {
     setShape('rectangle')
-    scheduleSave()
   }
 
-  // Sets the room shape and updates corner points
+  // Seab toakuju ning uuendab nurkade koordinaadid
   function setShape(type: ShapeType) {
     shape.value = type
     const w = stage.width
@@ -61,7 +59,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
         { x: w * 0.25, y: h * 0.75 }
       ]
     } else {
-      // rectangle or polygon default to rectangle footprint
+      // Ristkülik või hulknurk vaikimisi ristküliku kujuga
       points.value = [
         { x: w * 0.15, y: h * 0.2 },
         { x: w * 0.85, y: h * 0.2 },
@@ -69,27 +67,26 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
         { x: w * 0.15, y: h * 0.8 }
       ]
     }
-    scheduleSave()
   }
 
-  // Toggles the add-point mode
+  // Lülitab punktide lisamise režiimi
   function toggleAddPointMode() {
     addPointMode.value = !addPointMode.value
   }
 
-  // Opens the shape selection modal
+  // Avab kuju valiku akna
   function openShapeModal() { showShapeModal.value = true }
-  // Closes the shape selection modal
+  // Sulgeb kuju valiku akna
   function closeShapeModal() { showShapeModal.value = false }
 
-  // Inserts a point to the nearest edge to the given coordinates
+  // Lisab punkti lähimale servale antud koordinaatide järgi
   function insertPointOnNearestEdge(x: number, y: number) {
     if (points.value.length < 2) return
     const arr = points.value
     let bestDist = Number.POSITIVE_INFINITY
     let insertIndex = 0
 
-    // Calculates distance from a point to a line segment
+    // Arvutab kauguse punktist sirglõiguni
     function distPointToSeg(px: number, py: number, ax: number, ay: number, bx: number, by: number) {
       const abx = bx - ax
       const aby = by - ay
@@ -114,7 +111,6 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
       }
     }
     points.value.splice(insertIndex, 0, { x: clamp(x, 0, stage.width), y: clamp(y, 0, stage.height) })
-    scheduleSave()
   }
 
   return {
@@ -130,7 +126,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     openShapeModal,
     closeShapeModal,
     insertPointOnNearestEdge,
-    // Loads saved shape from backend (if any)
+    // Laeb salvestatud toakuju backendist (kui on)
     async loadFromServer() {
       try {
         const base = (import.meta as any).env?.NUXT_PUBLIC_API_BASE || (process.env as any)?.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
@@ -141,7 +137,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
         }
       } catch {}
     },
-    // Saves current shape to backend
+    // Salvestab praeguse toakuju backendi
     async saveToServer() {
       try {
         const base = (import.meta as any).env?.NUXT_PUBLIC_API_BASE || (process.env as any)?.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
@@ -153,13 +149,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
         })
       } catch {}
     },
-    _scheduleSave: scheduleSave
+    _scheduleSave: () => {}
   }
-  // Debounce helper used by mutators
-  let saveTimer: any = null
-  function scheduleSave() {
-    if (typeof window === 'undefined') return
-    clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => { (useRoomShapeStore() as any).saveToServer?.() }, 600)
-  }
+  // Automaatne salvestamine on keelatud; salvestatakse ainult saveToServer() kutsel
 })

@@ -1,5 +1,5 @@
 <template>
-  <div class="backdrop" @click="$emit('close')">
+  <div class="backdrop">
     <div class="modal" @click.stop>
       <h3>Üksuse sisu</h3>
       <div v-if="unit" class="list">
@@ -35,47 +35,45 @@ import { useStorageStore, type StoredObject } from '~/stores/storageStore'
 const props = defineProps<{ unitId: number | null }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 const store = useStorageStore()
-// Finds the selected storage unit by id
+// Leiab valitud hoiustamisüksuse ID järgi
 const unit = computed(() => store.items.find(i => i.id === props.unitId))
 const unitName = ref('')
 const rows = ref<StoredObject[]>([])
 const showError = ref(false)
 
-// Updates form fields when the selected unit changes
+// Uuendab vormi välju, kui valitud üksus muutub
 watch(unit, (u) => {
   unitName.value = u?.name ?? ''
   rows.value = u ? u.contents.map(x => ({ ...x })) : []
 }, { immediate: true })
 
-// Adds a new empty row
+// Lisab uue tühja rea
 const add = () => rows.value.push({ name: 'Ese', quantity: 1 })
-// Removes a row at index
+// Eemaldab rea indeksi alusel
 const remove = (i: number) => rows.value.splice(i, 1)
-// Increases quantity for a row (defensive: guard against invalid index)
+// Suurendab rea kogust (kaitsev kontroll kehtetu indeksi vastu)
 const inc = (i: number) => {
   const r = rows.value[i]
   if (!r) return
   r.quantity = Number.isInteger(r.quantity) ? r.quantity + 1 : 1
 }
-// Decreases quantity for a row (min 1) with defensive checks
+// Vähendab rea kogust (miinimum 1) koos kaitsekontrollidega
 const dec = (i: number) => {
   const r = rows.value[i]
   if (!r) return
   const cur = Number.isInteger(r.quantity) ? r.quantity : 1
   r.quantity = Math.max(1, cur - 1)
 }
-// Validates and saves changes to the store
-const save = () => {
+// Kontrollib andmed ja salvestab muudatused poodi
+const save = async () => {
   const valid = rows.value.every(r => Number.isInteger(r.quantity) && r.quantity >= 1)
   if (!valid) { showError.value = true; return }
-  const hasDefaultNames = rows.value.some(r => r.name.trim().toLowerCase() === 'ese')
-  if (hasDefaultNames) {
-    alert('Palun muuda “Ese” enne salvestamist!') // or use a nicer UI message
-    return
-  }
+  // Do not block save with popups; allow default names as-is
   if (unit.value) {
-    store.setContents(unit.value.id, rows.value)
-    store.updateUnit(unit.value.id, { name: unitName.value })
+    await store.setContents(unit.value.id, rows.value)
+    await store.updateUnit(unit.value.id, { name: unitName.value })
+    // Salvesta kohe, et sisu ei kaoks navigeerimisel
+    await store.saveToServer()
   }
   emit('close')
 }

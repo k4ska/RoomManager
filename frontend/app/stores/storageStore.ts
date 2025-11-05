@@ -48,15 +48,15 @@ export const useStorageStore = defineStore('storage', () => {
   const items = ref<StorageUnit[]>([])
   const currentRoomId = ref<number | null>(null)
 
-  // Returns API base URL from env
+  // Tagastab API baas-URLi keskkonnast
   function apiBase() {
-    // Nuxt 4 exposes public runtime as import.meta.env
-    // Fallback to process.env for SSR/node contexts
+    // Nuxt 4 avalik runtime on import.meta.env
+    // SSR/Node kontekstis varuvariandina process.env
     // @ts-ignore
     return (import.meta as any).env?.NUXT_PUBLIC_API_BASE || (process.env as any)?.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
   }
 
-  // Converts backend unit+items to local StorageUnit
+  // Teisendab backendist tulnud üksuse ja esemed kohalikuks StorageUnit-iks
   function mapUnit(u: any): StorageUnit {
     return {
       id: u.id,
@@ -72,7 +72,7 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
-  // Ensures the user has a room; creates one if needed
+  // Veendub, et kasutajal on tuba; vajadusel loob uue
   async function ensureRoom(): Promise<number> {
     if (currentRoomId.value) return currentRoomId.value
     const res = await fetch(`${apiBase()}/api/rooms`, { credentials: 'include' })
@@ -89,7 +89,7 @@ export const useStorageStore = defineStore('storage', () => {
     return currentRoomId.value as number
   }
 
-  // Loads units for the current room from backend
+  // Laeb aktiivse toa üksused backendist
   async function loadUnits() {
     const roomId = await ensureRoom()
     const res = await fetch(`${apiBase()}/api/rooms/${roomId}/units`, { credentials: 'include' })
@@ -107,41 +107,24 @@ export const useStorageStore = defineStore('storage', () => {
     const meta = META[type]
     const optimistic: StorageUnit = { id: idSeq++, type, x, y, w: meta.w, h: meta.h, rotation: 0, emoji: (emojiOverride ?? meta.emoji), name: (LABEL ? LABEL[type] : undefined), contents: [] }
     items.value.push(optimistic)
-    try {
-      const roomId = await ensureRoom()
-      const res = await fetch(`${apiBase()}/api/rooms/${roomId}/units`, {
-        method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ type, x, y, w: optimistic.w, h: optimistic.h, rotation: optimistic.rotation, emoji: optimistic.emoji, name: optimistic.name })
-      })
-      const data = await res.json()
-      if (data?.ok && data.unit) {
-        // Replace optimistic with server unit
-        const idx = items.value.findIndex(i => i.id === optimistic.id)
-        if (idx !== -1) items.value[idx] = mapUnit({ ...data.unit, items: [] })
-        return data.unit.id as number
-      }
-    } catch {}
     return optimistic.id
   }
 
-  // Updates an existing storage unit with a partial patch
+  // Uuendab olemasolevat üksust osalise parandusega
   async function updateUnit(id: number, patch: Partial<Omit<StorageUnit, 'id' | 'type' | 'emoji'>>) {
     const it = items.value.find(i => i.id === id)
     if (!it) return
     Object.assign(it, patch)
-    // Best-effort sync to backend
-    try {
-      await fetch(`${apiBase()}/api/units/${id}`, { method: 'PATCH', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch) })
-    } catch {}
+    // Defer server sync to saveToServer
   }
 
-  // Updates only the position of a storage unit
-  function updatePos(id: number, x: number, y: number) { return updateUnit(id, { x, y }) }
+  // Uuendab üksuse ainult asukohta
+  function updatePos(id: number, x: number, y: number) { return updateUnit(id, { x: Math.round(x), y: Math.round(y) }) }
 
-  // Removes a unit by id
+  // Eemaldab üksuse ID alusel
   async function removeUnit(id: number) {
     items.value = items.value.filter(i => i.id !== id)
-    try { await fetch(`${apiBase()}/api/units/${id}`, { method: 'DELETE', credentials: 'include' }) } catch {}
+    // Defer server sync to saveToServer
   }
 
   async function deleteUnit(id: number) {
@@ -157,47 +140,66 @@ export const useStorageStore = defineStore('storage', () => {
   async function clear() {
     const ids = items.value.map(i => i.id)
     items.value = []
-    try { await Promise.all(ids.map(id => fetch(`${apiBase()}/api/units/${id}`, { method: 'DELETE', credentials: 'include' }))) } catch {}
+    // Defer server sync to saveToServer
   }
 
-  // Replaces the contents array for a unit
+  // Asendab üksuse sisu massiivi
   async function setContents(id: number, contents: StoredObject[]) {
     const it = items.value.find(i => i.id === id)
     if (!it) return
     it.contents = contents
-    // Replace items on server: delete all then create anew
-    try {
-      const listRes = await fetch(`${apiBase()}/api/units/${id}/items`, { credentials: 'include' })
-      const listData = await listRes.json()
-      const existing: any[] = listData?.items || []
-      await Promise.all(existing.map(itm => fetch(`${apiBase()}/api/items/${itm.id}`, { method: 'DELETE', credentials: 'include' })))
-      await Promise.all(contents.map(c => fetch(`${apiBase()}/api/units/${id}/items`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(c) })))
-    } catch {}
+    // Defer server sync to saveToServer
   }
 
-  // Adds a single content item to a unit
+  // Lisab üksusele ühe sisu-elemendi
   async function addContent(id: number, item?: Partial<StoredObject>) {
     const it = items.value.find(i => i.id === id)
     if (!it) return
     const obj = { name: item?.name ?? 'Ese', quantity: item?.quantity ?? 1 }
     it.contents.push(obj)
-    try { await fetch(`${apiBase()}/api/units/${id}/items`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(obj) }) } catch {}
+    // Defer server sync to saveToServer
   }
 
-  // Removes a content item from a unit by index
+  // Eemaldab sisu-elemendi indeksi alusel
   async function removeContent(id: number, index: number) {
     const it = items.value.find(i => i.id === id)
     if (!it || index < 0 || index >= it.contents.length) return
-    // Try to delete corresponding server item by index order
-    try {
-      const listRes = await fetch(`${apiBase()}/api/units/${id}/items`, { credentials: 'include' })
-      const listData = await listRes.json()
-      const existing: any[] = listData?.items || []
-      const target = existing[index]
-      if (target) { await fetch(`${apiBase()}/api/items/${target.id}`, { method: 'DELETE', credentials: 'include' }) }
-    } catch {}
     it.contents.splice(index, 1)
   }
 
-  return { items, currentRoomId, ensureRoom, loadUnits, addUnit, updateUnit, updatePos, removeUnit, clear, setContents, addContent, removeContent, deleteUnit }
+  // Salvestab praeguse üksuste pildi backendis (turvaline täielik asendus)
+  async function saveToServer(): Promise<boolean> {
+    try {
+      const payload = { units: items.value.map(u => ({
+        type: u.type,
+        x: Math.round(u.x),
+        y: Math.round(u.y),
+        w: Math.round(u.w),
+        h: Math.round(u.h),
+        rotation: Math.round(u.rotation || 0),
+        emoji: u.emoji,
+        name: u.name,
+        contents: (u.contents || []).map(c => ({ name: c.name, quantity: Math.max(1, Math.round(c.quantity || 1)) }))
+      })) }
+      const res = await fetch(`${apiBase()}/api/layout`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      const text = await res.text()
+      if (!res.ok) {
+        console.error('saveToServer error', res.status, text)
+        return false
+      }
+      // Püüab vastust parsida kinnituseks (200 OK puhul võib keha olla tühi)
+      try { const data = JSON.parse(text); if (!(data && data.ok)) return false } catch (e) { /* backend võib tagastada tühja keha; 200 = OK */ }
+      return true
+    } catch (e) {
+      console.error('saveToServer failed', e)
+      return false
+    }
+  }
+
+  return { items, currentRoomId, ensureRoom, loadUnits, addUnit, updateUnit, updatePos, removeUnit, clear, setContents, addContent, removeContent, saveToServer }
 })

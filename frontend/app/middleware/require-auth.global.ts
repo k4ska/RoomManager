@@ -26,27 +26,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return
   }
 
-  // For all other routes: require authentication as before
-  // 1) SSR guard: check cookie directly on the server request
-  if (import.meta.server) {
-    const sess = useCookie<string | null>('rm_session')
-    if (!sess.value) return navigateTo('/login')
-    return
-  }
-
-  // 2) Client guard: use in-memory state or call /me
-  const userState = useState<any>('user', () => null)
-  if (userState.value) return
-
-  const { useAuthApi } = await import('~/composables/useAuth')
-  const { me } = useAuthApi()
-  try {
-    const res = await me()
-    if (res?.user) {
-      userState.value = res.user
-      return
-    }
-  } catch {}
-
-  return navigateTo('/login')
+  // For all other routes: do not enforce global auth.
+  // Per-page guards (e.g., editor/storage) will handle protection.
+  return
 })

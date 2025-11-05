@@ -17,12 +17,12 @@ const EMOJI_SIZE = 24 // size of emoji inside the unit
 const WALL_MARGIN = 2 // minimum distance from walls in pixels
 const DELETE_BTN_SIZE = 24 // size of delete button
 
-// Returns value clamped between min and max
+// Tagastab väärtuse piiratud vahemikus [min, max]
 function clampValue(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v))
 }
 
-// Returns the center point of a polygon
+// Tagastab hulknurga keskpunkti
 function getPolygonCenter(poly: { x: number; y: number }[]) {
   let x = 0
   let y = 0
@@ -33,7 +33,7 @@ function getPolygonCenter(poly: { x: number; y: number }[]) {
   return { x: x / poly.length, y: y / poly.length }
 }
 
-// Checks if a point is inside a polygon using ray-casting
+// Kontrollib, kas punkt asub hulknurga sees (ray-casting)
 function isPointInsidePolygon(px: number, py: number, poly: { x: number; y: number }[]) {
   let inside = false
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -46,7 +46,7 @@ function isPointInsidePolygon(px: number, py: number, poly: { x: number; y: numb
   return inside
 }
 
-// Returns the shortest distance from a point to the polygon edges
+// Tagastab lühima kauguse punktist hulknurga servadeni
 function getDistanceToPolygon(px: number, py: number, poly: { x: number; y: number }[]) {
   let minDist = Infinity
   for (let i = 0; i < poly.length; i++) {
@@ -64,7 +64,7 @@ function getDistanceToPolygon(px: number, py: number, poly: { x: number; y: numb
   return minDist
 }
 
-// Returns rectangle corner points (from top-left), respecting rotation
+// Tagastab ristküliku nurgapunktid (ülemisest vasakust), arvestades pöördenurka
 function getRectCornersFromTopLeft(x: number, y: number, w: number, h: number, deg: number) {
   const cx = x + w / 2
   const cy = y + h / 2
@@ -83,7 +83,7 @@ function getRectCornersFromTopLeft(x: number, y: number, w: number, h: number, d
   }))
 }
 
-// Checks if a rotated rectangle is fully inside the room and away from walls
+// Kontrollib, kas pööratud ristkülik on täielikult ruumi sees ja eemale seintest
 function isRectFullyInsideRoom(x: number, y: number, w: number, h: number, rot: number) {
   const corners = getRectCornersFromTopLeft(x, y, w, h, rot)
   for (const c of corners) {
@@ -93,7 +93,7 @@ function isRectFullyInsideRoom(x: number, y: number, w: number, h: number, rot: 
   return true
 }
 
-// Moves a rectangle inside the room if needed, returns top-left
+// Liigutab ristküliku vajadusel ruumi sisse; tagastab ülemise vasaku nurga
 function snapRectInsideRoom(x: number, y: number, w: number, h: number, rot: number) {
   if (isRectFullyInsideRoom(x, y, w, h, rot)) return { x, y }
   const center = getPolygonCenter(room.points)
@@ -115,7 +115,7 @@ function snapRectInsideRoom(x: number, y: number, w: number, h: number, rot: num
   }
 }
 
-// Finds the closest valid center inside the room while dragging
+// Leiab lohistamise ajal lähima kehtiva keskpunkti ruumis
 function findClosestCenterInsideRoom(wantedCenter: { x: number; y: number }, w: number, h: number, rot: number) {
   const roomCenter = getPolygonCenter(room.points)
   const dx = roomCenter.x - wantedCenter.x
@@ -187,13 +187,13 @@ onMounted(() => {
   })
 })
 
-// Removes the transformer from all nodes
+// Eemaldab transformer’i kõikidelt sõlmedelt
 function detachTransformer() {
   const tr = transformerRef.value?.getNode?.()
   if (tr) tr.nodes([])
 }
 
-// Attaches the transformer to the selected node
+// Seob transformer’i valitud sõlmega
 function attachTransformer() {
   const layer = layerRef.value?.getNode?.()
   const tr = transformerRef.value?.getNode?.()
@@ -207,21 +207,21 @@ function attachTransformer() {
   }
 }
 
-// Clears the current selection
+// Tühjendab praeguse valiku
 function clearSelection() {
   selectedId.value = null
   detachTransformer()
   if (typeof window !== 'undefined') (window as any).__rm_setSelected?.(null)
 }
 
-// Selects a unit by its id
+// Valib üksuse ID alusel
 function onRectClick(id: number) {
   selectedId.value = id
   attachTransformer()
   if (typeof window !== 'undefined') (window as any).__rm_setSelected?.(id)
 }
 
-// Updates the item position after dragging ends
+// Uuendab üksuse asukohta peale lohistamise lõppu
 function onDragEnd(id: number, e: any, item: any) {
   const node = e.target
   const cx = node.x()
@@ -234,7 +234,7 @@ function onDragEnd(id: number, e: any, item: any) {
   storage.updatePos(id, pos.x, pos.y)
 }
 
-// Updates size and rotation after transforming ends
+// Uuendab suuruse ja pöördenurga peale transformatsiooni lõppu
 function onTransformEnd(id: number, e: any) {
   const node = e.target
   const scale = node.scaleX() || 1
