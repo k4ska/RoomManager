@@ -112,11 +112,11 @@ async function saveOnly(): Promise<boolean> {
 }
 
 // Salvesta ja liigu vaatele
-async function goView() {
-  const ok = await saveOnly()
-  if (ok) router.push('/view')
-  else console.error('Salvestamine ebaõnnestus')
-}
+// async function goView() {
+//   const ok = await saveOnly()
+//   if (ok) router.push('/view')
+//   else console.error('Salvestamine ebaõnnestus')
+// }
 </script>
 
 <style scoped>

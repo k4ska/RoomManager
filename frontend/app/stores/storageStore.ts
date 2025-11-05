@@ -201,5 +201,13 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
-  return { items, currentRoomId, ensureRoom, loadUnits, addUnit, updateUnit, updatePos, removeUnit, clear, setContents, addContent, removeContent, saveToServer }
+  return {
+    items, currentRoomId,
+    ensureRoom, loadUnits,
+    addUnit, updateUnit,
+    updatePos, removeUnit,
+    clear, setContents,
+    addContent, removeContent,
+    saveToServer, deleteUnit
+  }
 })
