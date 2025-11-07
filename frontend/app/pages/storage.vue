@@ -44,12 +44,12 @@ const hasItems = computed(() => store.items.length > 0)
 const selectedId = ref<number | null>(null)
 
 // ✅ Open the view page after saving
-async function goView() {
-  try {
-    await shape.saveToServer()
-  } catch {}
-  router.push('/view')
-}
+// async function goView() {
+//   try {
+//     await shape.saveToServer()
+//   } catch {}
+//   router.push('/view')
+// }
 
 // ✅ Store currently selected unit id
 function setSelected(id: number | null) {
@@ -112,11 +112,11 @@ async function saveOnly(): Promise<boolean> {
 }
 
 // Salvesta ja liigu vaatele
-// async function goView() {
-//   const ok = await saveOnly()
-//   if (ok) router.push('/view')
-//   else console.error('Salvestamine ebaõnnestus')
-// }
+async function goView() {
+  const ok = await saveOnly()
+  if (ok) router.push('/view')
+  else console.error('Salvestamine ebaõnnestus')
+}
 </script>
 
 <style scoped>
