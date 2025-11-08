@@ -10,6 +10,7 @@ const stageRef = ref<any>(null)
 const layerRef = ref<any>(null)
 const transformerRef = ref<any>(null)
 const selectedId = ref<number | null>(null)
+const selectedIds = ref<number[]>([])
 const hoverId = ref<number | null>(null)
 
 const MIN = 30 // minimum side length in pixels
@@ -140,13 +141,29 @@ function findClosestCenterInsideRoom(wantedCenter: { x: number; y: number }, w: 
 
 // Deletes an item
 async function deleteItem(id: number) {
-  await storage.deleteUnit(id)
+  await storage.removeUnit(id)
+  
+  selectedIds.value = selectedIds.value.filter(i => i !== id)
+  
   if (selectedId.value === id) {
-    clearSelection()
+    selectedId.value = selectedIds.value[0] || null
+    if (selectedId.value) {
+      attachTransformer()
+    } else {
+      detachTransformer()
+    }
   }
+  
   if (hoverId.value === id) {
     hoverId.value = null
   }
+  
+  if (typeof window !== 'undefined') {
+  const setSelected = (window as any).__rm_setSelected
+  const setSelectedIds = (window as any).__rm_setSelectedIds
+  if (setSelected) setSelected(selectedId.value)
+  if (setSelectedIds) setSelectedIds(selectedIds.value)
+}
 }
 
 // Sets up drag-and-drop for adding new items to the canvas
@@ -182,8 +199,14 @@ onMounted(() => {
     const pos = snapRectInsideRoom(item.x, item.y, item.w, item.h, item.rotation)
     await storage.updatePos(id, pos.x, pos.y)
     selectedId.value = id
+    selectedIds.value = [id]
     attachTransformer()
-    if (typeof window !== 'undefined') (window as any).__rm_setSelected?.(id)
+    if (typeof window !== 'undefined') {
+    const setSelected = (window as any).__rm_setSelected
+    const setSelectedIds = (window as any).__rm_setSelectedIds
+    if (setSelected) setSelected(selectedId.value)
+    if (setSelectedIds) setSelectedIds(selectedIds.value)
+}
   })
 })
 
@@ -194,7 +217,7 @@ function detachTransformer() {
 }
 
 // Seob transformer’i valitud sõlmega
-function attachTransformer() {
+function attachTransformer(id?: number) {
   const layer = layerRef.value?.getNode?.()
   const tr = transformerRef.value?.getNode?.()
   if (!layer || !tr) return
@@ -210,19 +233,58 @@ function attachTransformer() {
 // Tühjendab praeguse valiku
 function clearSelection() {
   selectedId.value = null
+  selectedIds.value = []
   detachTransformer()
-  if (typeof window !== 'undefined') (window as any).__rm_setSelected?.(null)
+  if (typeof window !== 'undefined') {
+  const setSelected = (window as any).__rm_setSelected
+  const setSelectedIds = (window as any).__rm_setSelectedIds
+  if (setSelected) setSelected(selectedId.value)
+  if (setSelectedIds) setSelectedIds(selectedIds.value)
+}
 }
 
-// Valib üksuse ID alusel
+/* Valib üksuse ID alusel
 function onRectClick(id: number) {
   selectedId.value = id
   attachTransformer()
   if (typeof window !== 'undefined') (window as any).__rm_setSelected?.(id)
 }
+*/
+
+function onRectClick(id: number, evt: {evt: MouseEvent}) {
+  console.log('onRectClick called with id:', id)
+  console.log('Current selectedIds:', selectedIds.value)
+  const e = evt.evt as MouseEvent
+
+  // Toggle selection - click to select/deselect
+  if (selectedIds.value.includes(id)) {
+    // Deselect this item
+    selectedIds.value = selectedIds.value.filter(i => i !== id)
+    if (selectedId.value === id) {
+      selectedId.value = selectedIds.value[0] || null
+      if (selectedId.value) {
+        attachTransformer()
+      } else {
+        detachTransformer()
+      }
+    }
+  } else {
+    // Add to selection
+    selectedIds.value.push(id)
+    selectedId.value = id
+    attachTransformer()
+  }
+  
+  if (typeof window !== 'undefined') {
+  const setSelected = (window as any).__rm_setSelected
+  const setSelectedIds = (window as any).__rm_setSelectedIds
+  if (setSelected) setSelected(selectedId.value)
+  if (setSelectedIds) setSelectedIds(selectedIds.value)
+}
+}
 
 // Uuendab üksuse asukohta peale lohistamise lõppu
-function onDragEnd(id: number, e: any, item: any) {
+function onDragEnd(id: number, e: {target:any}, item: any) {
   const node = e.target
   const cx = node.x()
   const cy = node.y()
@@ -300,9 +362,9 @@ function onTransformEnd(id: number, e: any) {
             }"
             @mouseenter="() => hoverId = item.id"
             @mouseleave="() => hoverId = (hoverId===item.id?null:hoverId)"
-            @click="() => onRectClick(item.id)"
-            @dragend="e => onDragEnd(item.id, e, item)"
-            @transformend="e => onTransformEnd(item.id, e)"
+            @click="(e: any) => onRectClick(item.id, e)"
+            @dragend="(e: any) => onDragEnd(item.id, e, item)"
+            @transformend="(e: any) => onTransformEnd(item.id, e)"
           >
             
             <v-rect :config="{
@@ -312,8 +374,8 @@ function onTransformEnd(id: number, e: any) {
               height: item.h,
               cornerRadius: 8,
               fill: 'rgba(148,163,184,0.12)',
-              stroke: (hoverId===item.id || selectedId===item.id) ? '#93c5fd' : '#334155',
-              strokeWidth: (hoverId===item.id || selectedId===item.id) ? 2 : 1
+              stroke: (hoverId===item.id || selectedIds.includes(item.id)) ? '#93c5fd' : '#334155',
+              strokeWidth: (hoverId===item.id || selectedIds.includes(item.id)) ? 2 : 1
             }" />
 
             <v-text :config="{
@@ -334,10 +396,10 @@ function onTransformEnd(id: number, e: any) {
                 y: -item.h/2 - DELETE_BTN_SIZE/2,
                 listening: true
               }"
-              @click="(e) => { e.cancelBubble = true; deleteItem(item.id); }"
-              @tap="(e) => { e.cancelBubble = true; deleteItem(item.id); }"
-              @mousedown="(e) => e.cancelBubble = true"
-              @touchstart="(e) => e.cancelBubble = true"
+              @click="(e : any) => { e.cancelBubble = true; deleteItem(item.id); }"
+              @tap="(e: any) => { e.cancelBubble = true; deleteItem(item.id); }"
+              @mousedown="(e: any) => e.cancelBubble = true"
+              @touchstart="(e: any) => e.cancelBubble = true"
             >
               <v-circle :config="{
               x: 0,
@@ -351,8 +413,8 @@ function onTransformEnd(id: number, e: any) {
               shadowOpacity: 0.3,
               listening: true
             }" 
-            @mouseenter="(e) => { e.target.fill('#dc2626'); e.target.getLayer().batchDraw(); }"
-            @mouseleave="(e) => { e.target.fill('#ef4444'); e.target.getLayer().batchDraw(); }"
+            @mouseenter="(e: any) => { e.target.fill('#dc2626'); e.target.getLayer().batchDraw(); }"
+            @mouseleave="(e: any) => { e.target.fill('#ef4444'); e.target.getLayer().batchDraw(); }"
             />
               
               <v-text :config="{

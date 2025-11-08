@@ -4,7 +4,8 @@
       <h1>Ladustuse paigutus</h1>
       <div class="actions">
         <NuxtLink class="btn" to="/editor">Tagasi</NuxtLink>
-        <button class="btn warn" :disabled="!selectedId" @click="removeSelected">Kustuta valitu</button>
+        <button class="btn warn" :disabled="selectedIds.length === 0" @click="removeSelected">Kustuta valitud ({{selectedIds.length}} )
+        </button>
         <button class="btn warn" :disabled="!hasItems" @click="removeAll">Kustuta kõik</button>
         <button class="btn success" @click="goView">Salvesta ja vaade</button>
       </div>
@@ -14,7 +15,7 @@
       <StorageSelector />
       <div class="canvas-card">
         <div class="hint">
-          Lohista „Kast”, „Kapp” või „Riiul” lõuendile ja liiguta neid.
+          Lohista „Kast”, „Kapp” või „Riiul” lõuendile. Klõpsa objektidel, et neid valida (või tühista valik).
         </div>
         <ClientOnly>
           <StorageCanvas />
@@ -42,23 +43,34 @@ const { confirm } = useConfirm()
 
 const hasItems = computed(() => store.items.length > 0)
 const selectedId = ref<number | null>(null)
-
-// ✅ Open the view page after saving
+const selectedIds = ref<number[]>([]) // ainult et mitu asja korraga kustutada
+watch(selectedIds, (newVal) => {
+  console.log('selectedIds changed:', newVal)
+})
+/*  ✅ Open the view page after saving
 async function goView() {
   try {
     await shape.saveToServer()
   } catch {}
   router.push('/view')
 }
+*/
 
 // ✅ Store currently selected unit id
 function setSelected(id: number | null) {
+  console.log('setSelected called:', id)
   selectedId.value = id
+}
+
+function setSelectedIds(ids: number[]) {
+  console.log('setSelectedIds called:', ids)
+  selectedIds.value = ids
 }
 
 // ✅ Install bridge to update selection from canvas
 onMounted(async () => {
   ;(window as any).__rm_setSelected = setSelected
+  ;(window as any).__rm_setSelectedIds = setSelectedIds
   try {
     await shape.loadFromServer()
     await store.ensureRoom()
@@ -69,14 +81,36 @@ onMounted(async () => {
 // ✅ Clean up on unmount
 onBeforeUnmount(() => {
   delete (window as any).__rm_setSelected
+  delete (window as any).__rm_setSelectedIds
 })
 
-// ✅ Remove selected unit
+/* ✅ Remove selected unit
 function removeSelected() {
   if (selectedId.value != null) {
     store.removeUnit(selectedId.value)
     selectedId.value = null
   }
+}
+*/
+
+async function removeSelected() {
+  console.log('removeSelected called, selectedIds:', selectedIds.value)
+  if (selectedIds.value.length === 0) return
+  
+  const count = selectedIds.value.length
+  const ok = await confirm({
+    title: `Kustuta ${count} üksust?`,
+    message: 'Seda toimingut ei saa tagasi võtta.'
+  })
+  
+  if (!ok) return
+
+  for (const id of selectedIds.value) {
+    await store.removeUnit(id)
+  }
+
+  selectedId.value = null
+  selectedIds.value = []
 }
 
 // ✅ Custom confirm popup instead of window.confirm
@@ -91,6 +125,7 @@ async function removeAll() {
   if (ok) {
     await store.clear()
     selectedId.value = null
+    selectedIds.value = []
   }
 }
 
@@ -112,11 +147,10 @@ async function saveOnly(): Promise<boolean> {
 }
 
 // Salvesta ja liigu vaatele
-// async function goView() {
-//   const ok = await saveOnly()
-//   if (ok) router.push('/view')
-//   else console.error('Salvestamine ebaõnnestus')
-// }
+ async function goView() {
+ const ok = await saveOnly()
+  if (ok) router.push('/view')
+  else console.error('Salvestamine ebaõnnestus')}
 </script>
 
 <style scoped>
@@ -184,6 +218,14 @@ async function saveOnly(): Promise<boolean> {
 }
 .btn.success:hover {
   background: var(--accent-hover);
+}
+
+.btn:hover:not(:disabled) {
+  background: rgba(244, 63, 94, 0.25);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>
 
