@@ -15,4 +15,6 @@ ENV ASPNETCORE_URLS=http://0.0.0.0:4000
 ENV PORT=4000
 EXPOSE 4000
 
+RUN addgroup -S runner && adduser -S runner -G runner
+USER runner
 ENTRYPOINT ["dotnet", "backend.dll"]

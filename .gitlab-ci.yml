@@ -1,0 +1,42 @@
+variables:
+  DOCKER_DRIVER: overlay2
+  # Minu konteineri registri aadress AWS-s (Amazon Elastic Container Registry)
+  # Asenda MINU_REGISTRI_NIMI
+  DOCKER_REGISTRY: 662032419283.dkr.ecr.eu-north-1.amazonaws.com/roommanager
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_HOST: tcp://docker:2375
+
+stages:
+  - build
+
+default:
+  image:
+    name: docker:28.5.1-alpine3.22
+  services:
+    - docker:28.5.1-alpine3.22
+  before_script:
+    - apk add --no-cache curl jq python3 py3-pip
+    - pip install --break-system-packages awscli
+    - aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${DOCKER_REGISTRY}
+  after_script:
+    - docker logout ${DOCKER_REGISTRY}
+  tags:
+    - itb2203
+
+build:back-end:
+  only:
+    - master
+    - main
+  script:
+    - docker build -t ${DOCKER_REGISTRY}/back:${CI_COMMIT_SHA} ./backend/
+    - docker push ${DOCKER_REGISTRY}/back:${CI_COMMIT_SHA}
+  stage: build
+
+build:front-end:
+  only:
+    - master
+    - main
+  script:
+    - docker build -t ${DOCKER_REGISTRY}/front:${CI_COMMIT_SHA} ./frontend/
+    - docker push ${DOCKER_REGISTRY}/front:${CI_COMMIT_SHA}
+  stage: build
