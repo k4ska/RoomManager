@@ -14,7 +14,7 @@ const selectedIds = ref<number[]>([])
 const hoverId = ref<number | null>(null)
 
 const MIN = 30 // minimum side length in pixels
-const EMOJI_SIZE = 24 // size of emoji inside the unit
+const PADDING = 4 //emoji ümber ruum
 const WALL_MARGIN = 2 // minimum distance from walls in pixels
 const DELETE_BTN_SIZE = 24 // size of delete button
 
@@ -386,7 +386,7 @@ function onTransformEnd(id: number, e: any) {
               align: 'center',
               verticalAlign: 'middle',
               text: item.emoji,
-              fontSize: Math.max(EMOJI_SIZE, Math.min(item.w, item.h) * 0.5)
+              fontSize: Math.min(item.w, item.h) - PADDING
             }" />
 
             <v-group
