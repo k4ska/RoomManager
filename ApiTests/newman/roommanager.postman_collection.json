@@ -1,37 +1,41 @@
 {
 	"info": {
-		"_postman_id": "6e216999-dffe-4e64-891b-c035eeed0df2",
-		"name": "workout",
+		"_postman_id": "d85c766e-90b7-4610-bcfe-168fb161fe7a",
+		"name": "roommanager",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "9319536"
+		"_exporter_id": "48245876",
+		"_collection_link": "https://oskaas-4427248.postman.co/workspace/Oskar's-Workspace~6f5f6a19-cf41-45c3-8eef-7a684e47c9c0/collection/48245876-d85c766e-90b7-4610-bcfe-168fb161fe7a?action=share&source=collection_link&creator=48245876"
 	},
 	"item": [
 		{
-			"name": "Login",
+			"name": "test_register",
 			"event": [
 				{
 					"listen": "test",
 					"script": {
 						"exec": [
-							"var jsonData = pm.response.json();\r",
-							"var token = jsonData.token;\r",
-							"pm.collectionVariables.set(\"token\", token);\r",
-							""
+							"pm.test(\"Status is 201\", () => pm.response.to.have.status(201));\r",
+							"const json = pm.response.json();\r",
+							"pm.test(\"ok true\", () => pm.expect(json.ok).to.eql(true));\r",
+							"const setCookie = pm.response.headers.get(\"set-cookie\");\r",
+							"pm.test(\"set-cookie header present\", () => pm.expect(setCookie).to.match(/rm_session=/));\r",
+							"if (setCookie) {\r",
+							"const m = setCookie.match(/rm_session=([^;]+)/);\r",
+							"if (m) pm.environment.set(\"session_token\", m[1]);\r",
+							"}"
 						],
 						"type": "text/javascript",
-						"packages": {}
+						"packages": {},
+						"requests": {}
 					}
 				}
 			],
 			"request": {
-				"auth": {
-					"type": "noauth"
-				},
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n    \"username\": \"test1\",\r\n    \"password\": \"test1\"\r\n}",
+					"raw": "{\r\n\"email\": \"testuser@example.com\",\r\n\"password\": \"P@ssw0rd!\",\r\n\"name\": \"Test User\"\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -39,13 +43,62 @@
 					}
 				},
 				"url": {
-					"raw": "{{url}}/api/users/login",
+					"raw": "{{url}}/api/auth/register",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
 						"api",
-						"users",
+						"auth",
+						"register"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "test_login",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status is 200\", () => pm.response.to.have.status(200));\r",
+							"const json = pm.response.json();\r",
+							"pm.test(\"ok true\", () => pm.expect(json.ok).to.eql(true));\r",
+							"const setCookie = pm.response.headers.get(\"set-cookie\");\r",
+							"pm.test(\"set-cookie header present\", () => pm.expect(setCookie).to.match(/rm_session=/));\r",
+							"if (setCookie) {\r",
+							"const m = setCookie.match(/rm_session=([^;]+)/);\r",
+							"if (m) pm.environment.set(\"session_token\", m[1]);\r",
+							"}"
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n\"email\": \"testuser@example.com\",\r\n\"password\": \"P@ssw0rd!\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{url}}/api/auth/login",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"auth",
 						"login"
 					]
 				}
@@ -53,76 +106,47 @@
 			"response": []
 		},
 		{
-			"name": "GetExercisesHigh",
+			"name": "test_me",
 			"event": [
 				{
 					"listen": "test",
 					"script": {
 						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"",
-							"pm.test(\"High exercises exist\", function () {",
-							"    var jsonData = pm.response.json();",
-							"    ",
-							"    pm.expect(jsonData.length).to.greaterThan(0);",
-							"});"
+							"pm.test(\"Status is 200\", () => pm.response.to.have.status(200));\r",
+							"const json = pm.response.json();\r",
+							"pm.test(\"ok true\", () => pm.expect(json.ok).to.eql(true));\r",
+							"pm.test(\"user exists\", () => pm.expect(json.user).to.not.eql(null));\r",
+							"// optional: check email\r",
+							"pm.test(\"email matches\", () => pm.expect(json.user.email).to.eql(\"testuser@example.com\"));"
 						],
-						"type": "text/javascript"
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
 					}
 				}
 			],
-			"protocolProfileBehavior": {
-				"disableBodyPruning": true
-			},
 			"request": {
-				"auth": {
-					"type": "bearer",
-					"bearer": [
-						{
-							"key": "token",
-							"value": "{{token}}",
-							"type": "string"
-						}
-					]
-				},
 				"method": "GET",
-				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
+				"header": [
+					{
+						"key": "rm_session",
+						"value": "session_token",
+						"type": "text"
 					}
-				},
+				],
 				"url": {
-					"raw": "{{url}}/api/Exercises?intensity=High",
+					"raw": "{{url}}/api/auth/me",
 					"host": [
 						"{{url}}"
 					],
 					"path": [
 						"api",
-						"Exercises"
-					],
-					"query": [
-						{
-							"key": "intensity",
-							"value": "High"
-						}
+						"auth",
+						"me"
 					]
 				}
 			},
 			"response": []
-		}
-	],
-	"variable": [
-		{
-			"key": "token",
-			"value": ""
 		}
 	]
 }
