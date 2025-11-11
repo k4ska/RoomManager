@@ -8,6 +8,7 @@ variables:
 
 stages:
   - build
+  - api_test
 
 default:
   image:
@@ -40,3 +41,18 @@ build:front-end:
     - docker build -t ${DOCKER_REGISTRY}/front:${CI_COMMIT_SHA} ./frontend/
     - docker push ${DOCKER_REGISTRY}/front:${CI_COMMIT_SHA}
   stage: build
+
+api_test:
+  image:
+    name: docker:28.5.1-alpine3.22
+    entrypoint: ["/bin/sh", "-c"]
+  services:
+    - docker:28.5.1-alpine3.22
+  only:
+    - master
+    - main
+  script:
+    - cd ApiTests
+    - docker compose up --abort-on-container-exit --exit-code-from newman
+    - docker compose down -v
+  stage: api_test
