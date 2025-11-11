@@ -4,6 +4,8 @@ services:
     container_name: api_db
     environment:
       - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=room_manager
+      - POSTGRES_USER=postgres
     networks:
       - pg_net
   back_end:
