@@ -14,6 +14,9 @@ COPY --from=build /app/publish .
 ENV ASPNETCORE_URLS=http://0.0.0.0:4000
 ENV PORT=4000
 EXPOSE 4000
+RUN apt-get update \
+	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends netcat-openbsd \
+	&& rm -rf /var/lib/apt/lists/*
 
 # RUN addgroup -S runner && adduser -S runner -G runner
 # USER runner
