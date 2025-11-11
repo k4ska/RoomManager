@@ -64,6 +64,8 @@ builder.Services.AddCors(o => o.AddPolicy("frontend", p => p
     .AllowAnyMethod()
     .AllowCredentials()));
 
+builder.Services.AddOpenApi();
+
 
 var app = builder.Build();
 
@@ -112,10 +114,13 @@ using (var scope = ((IApplicationBuilder)app).ApplicationServices.GetRequiredSer
     await cmd.ExecuteNonQueryAsync();
 }
 
+
+
 // Seadista HTTP päringute toru
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.UseSwaggerUI(o => o.SwaggerEndpoint("/openapi/v1.json", "RoomManager API"));
 }
 
 // Luba CORS (arendus/Docker keskkond)
