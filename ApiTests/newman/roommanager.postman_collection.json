@@ -3,59 +3,10 @@
 		"_postman_id": "d85c766e-90b7-4610-bcfe-168fb161fe7a",
 		"name": "roommanager",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "48245876",
-		"_collection_link": "https://oskaas-4427248.postman.co/workspace/Oskar's-Workspace~6f5f6a19-cf41-45c3-8eef-7a684e47c9c0/collection/48245876-d85c766e-90b7-4610-bcfe-168fb161fe7a?action=share&source=collection_link&creator=48245876"
+		"_exporter_id": "49970213",
+		"_collection_link": "https://oskaas-4427248.postman.co/workspace/Oskar's-Workspace~6f5f6a19-cf41-45c3-8eef-7a684e47c9c0/collection/48245876-d85c766e-90b7-4610-bcfe-168fb161fe7a?action=share&source=collection_link&creator=49970213"
 	},
 	"item": [
-		{
-			"name": "test_register",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status is 201\", () => pm.response.to.have.status(201));\r",
-							"const json = pm.response.json();\r",
-							"pm.test(\"ok true\", () => pm.expect(json.ok).to.eql(true));\r",
-							"const setCookie = pm.response.headers.get(\"set-cookie\");\r",
-							"pm.test(\"set-cookie header present\", () => pm.expect(setCookie).to.match(/rm_session=/));\r",
-							"if (setCookie) {\r",
-							"const m = setCookie.match(/rm_session=([^;]+)/);\r",
-							"if (m) pm.environment.set(\"session_token\", m[1]);\r",
-							"}"
-						],
-						"type": "text/javascript",
-						"packages": {},
-						"requests": {}
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "{\r\n\"email\": \"testuser@example.com\",\r\n\"password\": \"P@ssw0rd!\",\r\n\"name\": \"Test User\"\r\n}",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
-				"url": {
-					"raw": "{{url}}/api/auth/register",
-					"host": [
-						"{{url}}"
-					],
-					"path": [
-						"api",
-						"auth",
-						"register"
-					]
-				}
-			},
-			"response": []
-		},
 		{
 			"name": "test_login",
 			"event": [
@@ -125,6 +76,12 @@
 					}
 				}
 			],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
 			"request": {
 				"method": "GET",
 				"header": [
@@ -143,6 +100,32 @@
 						"api",
 						"auth",
 						"me"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "test_room-shape_created",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "rm_session",
+						"value": "session_token",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{url}}/api/units/{unitId}/items",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"units",
+						"{unitId}",
+						"items"
 					]
 				}
 			},
