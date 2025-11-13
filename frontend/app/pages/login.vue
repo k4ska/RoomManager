@@ -1,107 +1,74 @@
-<template>
-  <main class="auth-wrap">
-    <form class="card" @submit.prevent="onSubmit">
-      <h1>Logi sisse</h1>
-      <label class="lbl">Email</label>
-      <input class="inp" type="email" v-model="email" required />
-      <label class="lbl">Parool</label>
-      <input class="inp" type="password" v-model="password" required />
-      <div class="error" v-if="error">{{ error }}</div>
-      <button class="btn" :disabled="loading">{{ loading ? 'Sisselogimine…' : 'Logi sisse' }}</button>
-      <p class="hint">Pole kasutajat? <NuxtLink to="/register">Loo konto</NuxtLink></p>
-    </form>
-  </main>
-</template>
-
 <script setup lang="ts">
+import * as z from 'zod'
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import type { FormSubmitEvent, AuthFormField } from '@nuxt/ui'
 import { useAuthApi } from '~/composables/useAuth'
 
-const router = useRouter()
-const { login } = useAuthApi()
-const email = ref('')
-const password = ref('')
-const loading = ref(false)
-const error = ref('')
+const fields: AuthFormField[] = [{
+  name: 'email',
+  type: 'email',
+  label: 'Email',
+  placeholder: 'Enter your email',
+  required: true
+}, {
+  name: 'password',
+  label: 'Password',
+  type: 'password',
+  placeholder: 'Enter your password',
+  required: true
+}]
 
-// Submits login form and redirects on success
-async function onSubmit() {
-  error.value = ''
+const schema = z.object({
+  email: z.email('Invalid email'),
+  password: z.string('Password is required').min(8, 'Must be at least 8 characters')
+})
+
+type Schema = z.output<typeof schema>
+const { login } = useAuthApi()
+
+const loading = ref(false)
+const errorMessage = ref<string | null>(null)
+const router = useRouter()
+
+async function onSubmit(payload: FormSubmitEvent<Schema>) {
   loading.value = true
+  errorMessage.value = null
+
   try {
-    const res = await login(email.value, password.value)
-    if (!res?.ok) {
-      error.value = res?.error || 'Sisselogimine ebaõnnestus'
+    const res = await login(payload.data.email, payload.data.password)
+    if (res?.ok) {
+      await router.push('/')
       return
     }
-    router.push('/')
-  } catch (e) {
-    error.value = 'Võrguviga'
+    errorMessage.value = res?.message || res?.error || 'Login failed. Check your credentials.'
+  } catch (err: any) {
+    errorMessage.value = err?.message || String(err) || 'Login failed due to network error.'
   } finally {
     loading.value = false
   }
 }
+
 </script>
 
-<style scoped>
-.auth-wrap { 
-min-height: 100vh; 
-display: grid; 
-place-items: center; 
-padding: 24px; 
-}
-.card { 
-  width: 420px; 
-  max-width: 95vw; 
-  background: rgba(17,24,39,0.85); 
-  border: 1px solid #334155; 
-  border-radius: 16px; 
-  padding: 18px; 
-}
-h1 { 
-  margin: 0 0 10px 0; 
-  font-size: 1.4rem; 
-}
-.lbl { 
-  display: block; 
-  margin: 10px 0 6px; 
-  font-size: .95rem; 
-  color: #cbd5e1; 
-}
-.inp { 
-  width: 100%; 
-  box-sizing: border-box; 
-  background: rgba(148,163,184,0.12); 
-  border: 1px solid #334155; 
-  border-radius: 10px; 
-  padding: 9px 10px; 
-  color: var(--text); 
-}
-.btn { 
-  margin-top: 14px; 
-  width: 100%; 
-  background: var(--accent); 
-  color: #062217; 
-  border: none; 
-  padding: 10px 12px; 
-  border-radius: 10px; 
-  font-weight: 700; 
-  cursor: pointer; 
-}
-.btn:disabled { 
-  opacity: .6; 
-  cursor: not-allowed; 
-}
-.hint { 
-  margin-top: 10px; 
-  color: #9ca3af; 
-  font-size: .95rem; 
-}
-.error { 
-  color: #f87171; 
-  font-size: .95rem; 
-  margin-top: 8px; 
-}
-</style>
+<template>
+  <div class="flex flex-col items-center justify-center gap-8 p-10">
+    <UPageCard class="w-full max-w-md">
+      <UAuthForm
+        :schema="schema"
+        :fields="fields"
+        title="Login"
+        icon="i-lucide-user"
+        @submit="onSubmit"
+      >
+        <template #description>
+          Don't have an account? <ULink to="/register" class="text-primary font-medium">Sign up</ULink>.
+        </template>
+        
+        <template #validation>
+          <UAlert v-if="errorMessage" color="error" icon="i-lucide-info" :title="errorMessage" />
+        </template>
+      </UAuthForm>
+    </UPageCard>
+  </div>
+</template>
 

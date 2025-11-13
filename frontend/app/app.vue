@@ -1,7 +1,9 @@
 <template>
-  <HeaderBar />
-  <NuxtPage />
-  <ConfirmPopup ref="confirmPopup" />
+  <UApp>
+    <HeaderBar />
+    <NuxtPage />
+    <ConfirmPopup ref="confirmPopup" />
+  </UApp>
 </template>
 
 <script setup lang="ts">
