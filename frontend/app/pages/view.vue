@@ -4,7 +4,6 @@
       <h1>Ruumivaade</h1>
       <div class="actions">
         <NuxtLink class="btn" to="/storage">Muuda paigutust</NuxtLink>
-        <button class="btn" @click="openEditor">Muuda sisu</button>
       </div>
     </header>
     <section class="canvas-card">
@@ -28,8 +27,6 @@ import { useRoomShapeStore } from '~/stores/roomShape'
 // Vaateleht on avalik (kiire juurdepääs avalehelt)
 const selectedId = ref<number | null>(null)
 const showPopup = ref(false)
-// Avab esemete muutmise akna
-function openEditor(){ showPopup.value = true }
 
 // Laeb salvestatud toakuju ja üksused ainult lugemiseks
 const shape = useRoomShapeStore()
