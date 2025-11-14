@@ -9,17 +9,17 @@
     </header>
     <section class="canvas-card">
       <ClientOnly>
-        <ViewCanvas :selected-id="selectedId" @select="id => selectedId = id" />
+        <ViewCanvas :selected-id="selectedId" @select="id => { selectedId = id; showPopup = id !== null }" />
       </ClientOnly>
     </section>
 
-    <ObjectPopup v-if="showPopup" :unit-id="selectedId" @close="showPopup=false" />
+    <UusObjectPopup v-if="showPopup" :unit-id="selectedId" @close="showPopup=false" />
   </div>
 </template>
 
 <script setup lang="ts">
 import ViewCanvas from '~/components/ViewCanvas.vue'
-import ObjectPopup from '~/components/ObjectPopup.vue'
+import UusObjectPopup from '~/components/uusObjectPopup.vue'
 import { ref } from 'vue'
 import { onMounted } from 'vue'
 import { useStorageStore } from '~/stores/storageStore'
