@@ -22,6 +22,7 @@
         </ClientOnly>
       </div>
     </section>
+      <UusConfirmPopup ref="confirmRef" />
   </div>
 </template>
 
@@ -32,14 +33,14 @@ import { useRouter } from 'vue-router'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useStorageStore } from '~/stores/storageStore'
 import { useRoomShapeStore } from '~/stores/roomShape'
-import { useConfirm } from '~/composables/useConfirm' 
+import UusConfirmPopup from '~/components/uusConfirmPopup.vue'
 
 definePageMeta({ middleware: 'auth' })
 
 const router = useRouter()
 const shape = useRoomShapeStore()
 const store = useStorageStore()
-const { confirm } = useConfirm()
+const confirmRef = ref<any>(null)
 
 const hasItems = computed(() => store.items.length > 0)
 const selectedId = ref<number | null>(null)
@@ -98,7 +99,7 @@ async function removeSelected() {
   if (selectedIds.value.length === 0) return
   
   const count = selectedIds.value.length
-  const ok = await confirm({
+  const ok = await confirmRef.value?.open({
     title: `Kustuta ${count} üksust?`,
     message: 'Seda toimingut ei saa tagasi võtta.'
   })
@@ -117,7 +118,7 @@ async function removeSelected() {
 async function removeAll() {
   if (!hasItems.value) return
 
-  const ok = await confirm({
+  const ok = await confirmRef.value?.open({
     title: 'Kustuta kõik üksused?',
     message: 'Seda toimingut ei saa tagasi võtta.'
   })
