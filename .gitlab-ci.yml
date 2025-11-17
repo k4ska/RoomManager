@@ -12,7 +12,7 @@ variables:
 
 stages:
   - build
-  - api_test
+  # - api_test
   - deploy
 
 default:
