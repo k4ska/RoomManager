@@ -1,23 +1,30 @@
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
-WORKDIR /src
+ARG REGISTRY=""
 
-COPY backend.csproj ./
+# Define base image
+FROM ${REGISTRY}/dotnet/sdk:9.0-alpine3.22 AS builder
+
+# Copy project files
+WORKDIR /source
+COPY ./*.csproj .
+
+# Restore
 RUN dotnet restore
 
+# Copy all source code
 COPY . .
-RUN dotnet publish -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
+# Publish
+WORKDIR /source
+RUN dotnet publish "backend.csproj" -c Release -o /publish
+
+# Runtime
+FROM ${REGISTRY}/dotnet/aspnet:9.0-alpine3.22
 WORKDIR /app
-COPY --from=build /app/publish .
+COPY --from=builder /publish .
 
-ENV ASPNETCORE_URLS=http://0.0.0.0:4000
-ENV PORT=4000
 EXPOSE 4000
-RUN apt-get update \
-	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends netcat-openbsd \
-	&& rm -rf /var/lib/apt/lists/*
 
-# RUN addgroup -S runner && adduser -S runner -G runner
-# USER runner
+RUN addgroup -S runner && adduser -S runner -G runner
+USER runner
 ENTRYPOINT ["dotnet", "backend.dll"]
+

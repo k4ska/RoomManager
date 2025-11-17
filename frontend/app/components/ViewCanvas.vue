@@ -6,7 +6,7 @@ import { useStorageStore } from '~/stores/storageStore'
 const room = useRoomShapeStore()
 const storage = useStorageStore()
 const props = defineProps<{ selectedId?: number | null }>()
-const emit = defineEmits<{ (e: 'select', id: number): void }>()
+const emit = defineEmits<{ (e: 'select', id: number | null): void }>()
 
 const hoverId = ref<number | null>(null)
 const EMOJI_SIZE = 20
@@ -35,13 +35,14 @@ function linesFor(item: { contents?: { name: string; quantity: number }[] }) {
             width: room.stage.width,
             height: room.stage.height,
             fill: '#0b1222'
-          }" />
+          }" @click="() => emit('select', null)" />
         <v-line
           :points="room.points.flatMap(p => [p.x, p.y])"
           :closed="true"
           :stroke="'#e5e7eb'"
           :strokeWidth="2.5"
           :fill="'rgba(16,185,129,0.06)'"
+          @click="() => emit('select', null)"
         />
         <template v-for="item in storage.items" :key="item.id">
           <!-- Click to select -->
@@ -61,8 +62,8 @@ function linesFor(item: { contents?: { name: string; quantity: number }[] }) {
               width: item.w,
               height: item.h,
               cornerRadius: 8,
-              stroke: props.selectedId===item.id ? '#93c5fd' : undefined,
-              strokeWidth: props.selectedId===item.id ? 2 : 0
+              stroke: hoverId===item.id ? '#93c5fd' : undefined,
+              strokeWidth: hoverId===item.id ? 2 : 0
             }" />
             <v-text :config="{
               x: -item.w/2,

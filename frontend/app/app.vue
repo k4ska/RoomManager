@@ -2,17 +2,12 @@
   <UApp>
     <HeaderBar />
     <NuxtPage />
-    <ConfirmPopup ref="confirmPopup" />
   </UApp>
 </template>
 
 <script setup lang="ts">
 import HeaderBar from '~/components/HeaderBar.vue'
-import ConfirmPopup from '~/components/ConfirmPopup.vue'
 
-
-const confirmPopup = ref()
-provide('confirmPopup', confirmPopup)
 </script>
 
 <style>

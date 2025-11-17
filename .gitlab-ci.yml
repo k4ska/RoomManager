@@ -3,12 +3,17 @@ variables:
   # Minu konteineri registri aadress AWS-s (Amazon Elastic Container Registry)
   # Asenda MINU_REGISTRI_NIMI
   DOCKER_REGISTRY: 662032419283.dkr.ecr.eu-north-1.amazonaws.com/roommanager
+  # Dockeri imageid on kopeeritud AWS registrisse, et vältida limiite imageite pullimisel Docker Hubist
+  DOCKER_PUBLIC_REGISTRY: 662032419283.dkr.ecr.eu-north-1.amazonaws.com/public
   DOCKER_TLS_CERTDIR: ""
   DOCKER_HOST: tcp://docker:2375
+  # muuda enda domeeniks või virtuaalmasina IP-ks
+  DOMAIN: roommanager.itb2203.tautar.ee
 
 stages:
   - build
   - api_test
+  - deploy
 
 default:
   image:
@@ -29,7 +34,7 @@ build:back-end:
     - master
     - main
   script:
-    - docker build -t ${DOCKER_REGISTRY}/back:${CI_COMMIT_SHA} ./backend/
+    - docker build -t ${DOCKER_REGISTRY}/back:${CI_COMMIT_SHA} --build-arg REGISTRY=${DOCKER_PUBLIC_REGISTRY} ./BackEnd/
     - docker push ${DOCKER_REGISTRY}/back:${CI_COMMIT_SHA}
   stage: build
 
@@ -38,7 +43,7 @@ build:front-end:
     - master
     - main
   script:
-    - docker build -t ${DOCKER_REGISTRY}/front:${CI_COMMIT_SHA} ./frontend/
+    - docker build -t ${DOCKER_REGISTRY}/front:${CI_COMMIT_SHA} --build-arg REGISTRY=${DOCKER_PUBLIC_REGISTRY} ./FrontEnd/
     - docker push ${DOCKER_REGISTRY}/front:${CI_COMMIT_SHA}
   stage: build
 
@@ -46,8 +51,6 @@ api_test:
   image:
     name: docker:28.5.1-alpine3.22
     entrypoint: ["/bin/sh", "-c"]
-  services:
-    - docker:28.5.1-alpine3.22
   only:
     - master
     - main
@@ -56,3 +59,36 @@ api_test:
     - docker compose up --abort-on-container-exit --exit-code-from newman
     - docker compose down -v
   stage: api_test
+
+deploy:
+  when: manual
+  only:
+    - master
+    - main
+  before_script:
+    # teeme kindlaks, et ssh on installitud
+    - "which ssh-agent || ( apt-get update -y && apt-get install openssh-client git -y )"
+
+    # käivitame ssh
+    - eval $(ssh-agent -s)
+
+    # loome ssh kausta ja anname ssh kaustas lugemise, kirjutamise ja käivitamise õigused
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+
+    # leiame kõik serveri public key-d ja usaldame neid runneri keskkonnas
+    - ssh-keyscan ${DOMAIN} >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+    # leiame kõik serveri public key-d ja usaldame neid runneri keskkonnas
+    - ssh-keyscan ${DOMAIN} >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+  script:
+    # loeme GitLabi muutujatest private key
+    - echo "("$SSH_PRIVATE_KEY" | tr -d '\r')"
+    - ssh-add <(echo "$SSH_PRIVATE_KEY" | tr -d '\r')
+
+    # loome ssh ühenduse
+    - ssh ubuntu@${DOMAIN} "(aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin ${DOCKER_REGISTRY}) && CI_COMMIT_SHA=${CI_COMMIT_SHA} docker compose -f ~/app/compose.yml up -d"
+  after_script:
+    - exit
+  stage: deploy

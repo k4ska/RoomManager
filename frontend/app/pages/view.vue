@@ -4,22 +4,21 @@
       <h1>Ruumivaade</h1>
       <div class="actions">
         <NuxtLink class="btn" to="/storage">Muuda paigutust</NuxtLink>
-        <button class="btn" @click="openEditor">Muuda sisu</button>
       </div>
     </header>
     <section class="canvas-card">
       <ClientOnly>
-        <ViewCanvas :selected-id="selectedId" @select="id => selectedId = id" />
+        <ViewCanvas :selected-id="selectedId" @select="id => { selectedId = id; showPopup = id !== null }" />
       </ClientOnly>
     </section>
 
-    <ObjectPopup v-if="showPopup" :unit-id="selectedId" @close="showPopup=false" />
+    <UusObjectPopup v-if="showPopup" :unit-id="selectedId" @close="showPopup=false" />
   </div>
 </template>
 
 <script setup lang="ts">
 import ViewCanvas from '~/components/ViewCanvas.vue'
-import ObjectPopup from '~/components/ObjectPopup.vue'
+import UusObjectPopup from '~/components/uusObjectPopup.vue'
 import { ref } from 'vue'
 import { onMounted } from 'vue'
 import { useStorageStore } from '~/stores/storageStore'
@@ -28,8 +27,6 @@ import { useRoomShapeStore } from '~/stores/roomShape'
 // Vaateleht on avalik (kiire juurdepääs avalehelt)
 const selectedId = ref<number | null>(null)
 const showPopup = ref(false)
-// Avab esemete muutmise akna
-function openEditor(){ showPopup.value = true }
 
 // Laeb salvestatud toakuju ja üksused ainult lugemiseks
 const shape = useRoomShapeStore()
