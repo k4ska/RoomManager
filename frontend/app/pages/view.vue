@@ -24,6 +24,7 @@ import { onMounted } from 'vue'
 import { useStorageStore } from '~/stores/storageStore'
 import { useRoomShapeStore } from '~/stores/roomShape'
 
+
 // Vaateleht on avalik (kiire juurdepääs avalehelt)
 const selectedId = ref<number | null>(null)
 const showPopup = ref(false)

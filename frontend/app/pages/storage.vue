@@ -35,7 +35,6 @@ import { useStorageStore } from '~/stores/storageStore'
 import { useRoomShapeStore } from '~/stores/roomShape'
 import UusConfirmPopup from '~/components/uusConfirmPopup.vue'
 
-definePageMeta({ middleware: 'auth' })
 
 const router = useRouter()
 const shape = useRoomShapeStore()

@@ -17,8 +17,6 @@
 </template>
 
 <script setup lang="ts">
-// Landing page is public; auth is required on editor/storage routes
-// Always navigate to /view using Nuxt navigateTo
 const goView = () => navigateTo('/view')
 </script>
 
