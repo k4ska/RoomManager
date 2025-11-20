@@ -1,9 +1,7 @@
 ARG REGISTRY=""
-ARG DOTNET_SDK_IMAGE=dotnet/sdk:9.0-alpine3.22
-ARG DOTNET_RUNTIME_IMAGE=dotnet/aspnet:9.0-alpine3.22
 
 # Define base image
-FROM ${REGISTRY}${DOTNET_SDK_IMAGE} AS builder
+FROM ${REGISTRY}/dotnet/sdk:9.0-alpine3.22 AS builder
 
 # Copy project files
 WORKDIR /source
@@ -20,7 +18,7 @@ WORKDIR /source
 RUN dotnet publish "backend.csproj" -c Release -o /publish
 
 # Runtime
-FROM ${REGISTRY}${DOTNET_RUNTIME_IMAGE}
+FROM ${REGISTRY}/dotnet/aspnet:9.0-alpine3.22
 WORKDIR /app
 COPY --from=builder /publish .
 
