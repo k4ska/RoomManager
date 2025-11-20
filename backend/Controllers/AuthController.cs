@@ -15,6 +15,7 @@ namespace backend.Controllers
         private readonly ITokenService _tokenService;
         private readonly IWebHostEnvironment _env;
         private readonly string _cookieName;
+        private readonly string? _cookieDomain;
 
         public AuthController(UsersRepo usersRepo, ITokenService tokenService, IWebHostEnvironment env, IConfiguration cfg)
         {
@@ -22,6 +23,7 @@ namespace backend.Controllers
             _tokenService = tokenService;
             _env = env;
             _cookieName = cfg["SESSION_COOKIE_NAME"] ?? Environment.GetEnvironmentVariable("SESSION_COOKIE_NAME") ?? "rm_session";
+            _cookieDomain = cfg["SESSION_COOKIE_DOMAIN"] ?? Environment.GetEnvironmentVariable("SESSION_COOKIE_DOMAIN");
         }
 
         [HttpPost("register")]
@@ -70,10 +72,14 @@ namespace backend.Controllers
             {
                 HttpOnly = true,
                 Path = "/",
-                SameSite = SameSiteMode.Lax,
+                SameSite = _env.IsProduction() ? SameSiteMode.None : SameSiteMode.Lax,
                 Secure = _env.IsProduction(),
                 MaxAge = TimeSpan.Zero
             };
+            if (!string.IsNullOrEmpty(_cookieDomain))
+            {
+                cookieOptions.Domain = _cookieDomain;
+            }
             Response.Cookies.Append(_cookieName, "", cookieOptions);
             return Ok(new { ok = true });
         }
@@ -100,10 +106,14 @@ namespace backend.Controllers
             {
                 HttpOnly = true,
                 Path = "/",
-                SameSite = SameSiteMode.Lax,
+                SameSite = _env.IsProduction() ? SameSiteMode.None : SameSiteMode.Lax,
                 Secure = _env.IsProduction(),
                 MaxAge = TimeSpan.FromDays(7)
             };
+            if (!string.IsNullOrEmpty(_cookieDomain))
+            {
+                cookieOptions.Domain = _cookieDomain;
+            }
             Response.Cookies.Append(_cookieName, token, cookieOptions);
         }
     }

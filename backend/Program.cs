@@ -56,13 +56,26 @@ builder.Services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
 
 // CORS: luba seadistatud frontendi päritolud (komadega eraldatud)
-var corsOriginsRaw = Environment.GetEnvironmentVariable("CORS_ORIGIN") ?? "http://localhost:3000";
-var corsOrigins = corsOriginsRaw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-builder.Services.AddCors(o => o.AddPolicy("frontend", p => p
-    .WithOrigins(corsOrigins)
-    .AllowAnyHeader()
-    .AllowAnyMethod()
-    .AllowCredentials()));
+// var corsOriginsRaw = Environment.GetEnvironmentVariable("CORS_ORIGIN") ?? "http://localhost:3000";
+// var corsOrigins = corsOriginsRaw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+// builder.Services.AddCors(o => o.AddPolicy("frontend", p => p
+//     .WithOrigins(corsOrigins)
+//     .AllowAnyHeader()
+//     .AllowAnyMethod()
+//     .AllowCredentials()));
+
+var frontendOrigin = builder.Configuration["FRONTEND_ORIGIN"] ?? "https://roommanager.itb2203.tautar.ee";
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins(frontendOrigin)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
 
 builder.Services.AddOpenApi();
 
@@ -124,7 +137,9 @@ if (app.Environment.IsDevelopment())
 }
 
 // Luba CORS (arendus/Docker keskkond)
-app.UseCors("frontend");
+// app.UseCors("frontend");
+
+app.UseCors("AllowFrontend");
 
 // Tervisekontrolli endpoint kiireks kontrolliks
 app.MapGet("/api/health", (IHostEnvironment env) => Results.Json(new { ok = true, service = "backend", env = env.EnvironmentName }));
