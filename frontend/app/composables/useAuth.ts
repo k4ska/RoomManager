@@ -1,38 +1,34 @@
 // Lihtne autentimise abifunktsioon backend-i auth-endpointide kutsumiseks
 export function useAuthApi() {
-  // Prefer Nuxt runtime public config so the frontend can call the correct backend
-  // when deployed. If not set, fall back to the current origin in the browser
-  // (so requests go to the same host that serves the frontend).
-  const runtime = useRuntimeConfig?.() as any || {}
+    // runtimeConfig (nuxt.config) eelistus, see töötab nii dev kui prod builds
+  const runtime = (useRuntimeConfig?.() as any) || {}
   const publicCfg = runtime.public || {}
-  const publicApiBase = publicCfg.NUXT_PUBLIC_API_BASE ?? publicCfg.apiBase
-  // If a public API base is provided via runtime config use it. Otherwise
-  // default to an empty string so fetch calls become relative (e.g. `/api/...`).
-  // Relative requests are recommended when you reverse-proxy the backend
-  // under the same origin as the frontend (avoids mixed-content and CORS).
-  const base = publicApiBase ?? ''
-  // Debug helper in dev: log resolved base so it's easy to verify in browser console
-  const mode = (import.meta as any).env?.MODE || (import.meta as any).env?.VITE_ENV || 'production'
-  if (mode !== 'production' && typeof window !== 'undefined') {
-    // eslint-disable-next-line no-console
-    console.log('[useAuthApi] API base =', base || '(relative / same-origin)')
+  const publicApiBase = publicCfg.apiBase || (import.meta as any).env?.NUXT_PUBLIC_API_BASE || (globalThis as any).process?.env?.NUXT_PUBLIC_API_BASE || ''
+
+  // Kontroll, kas jookseme serveris (SSR) — ainult siis loeme server-poolseid runtime võtmeid
+  const isServer = typeof window === 'undefined'
+
+  // Sisemine base SSR-iks / konteinerite vaheliseks sideks (loe ainult serveri kontekstis)
+  let internalApiBase = ''
+  if (isServer) {
+    internalApiBase = runtime.API_INTERNAL_BASE || runtime.apiInternalBase || (import.meta as any).env?.API_INTERNAL_BASE || (globalThis as any).process?.env?.API_INTERNAL_BASE || ''
   }
 
-  // Helper to build a correct absolute URL for the API endpoint.
-  // If `base` is empty we use the same origin (relative) path.
+  // Server (SSR) eelistab sisemist base'i; klient kasutab avalikku base'i
+  const base = isServer ? (internalApiBase || publicApiBase || 'http://backend:4000') : (publicApiBase || 'http://localhost:4000')
+
+  const userState = useState<any>('user', () => null)
+
+  // abifunktsioon, et kokku panna korrektsed URLid (väldib // topelt)
   function apiUrl(path: string) {
-    // ensure path starts with a single leading slash
     const p = path.startsWith('/') ? path : `/${path}`
     if (!base) return p
     try {
-      // new URL with an absolute path will produce the correct URL even if base contains a path
       return new URL(p, base).toString()
     } catch {
-      // fallback: naive join but avoid double slashes
-      return `${base.replace(/\/+$/, '')}${p}`
+      return `${String(base).replace(/\/+$/, '')}${p}`
     }
   }
-  const userState = useState<any>('user', () => null)
 
   // Kutsub POST /api/auth/login
   async function login(email: string, password: string) {
@@ -67,13 +63,11 @@ export function useAuthApi() {
         method: 'POST',
         credentials: 'include'
       })
-      // Proovi lugeda vastust, kuid ära ebaõnnestu kui tühi
       let ok = res.ok
       try {
         const data = await res.json()
         ok = ok && !!data?.ok
       } catch {}
-      // Igal juhul nulli kliendi olek, et UI peegeldaks väljalogimist
       userState.value = null
       return { ok }
     } catch {
