@@ -6,12 +6,37 @@ export function useAuthApi() {
   const runtime = useRuntimeConfig?.() as any || {}
   const publicCfg = runtime.public || {}
   const publicApiBase = publicCfg.NUXT_PUBLIC_API_BASE ?? publicCfg.apiBase
-  const base = publicApiBase || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : 'http://localhost:4000')
+  // If a public API base is provided via runtime config use it. Otherwise
+  // default to an empty string so fetch calls become relative (e.g. `/api/...`).
+  // Relative requests are recommended when you reverse-proxy the backend
+  // under the same origin as the frontend (avoids mixed-content and CORS).
+  const base = publicApiBase ?? ''
+  // Debug helper in dev: log resolved base so it's easy to verify in browser console
+  const mode = (import.meta as any).env?.MODE || (import.meta as any).env?.VITE_ENV || 'production'
+  if (mode !== 'production' && typeof window !== 'undefined') {
+    // eslint-disable-next-line no-console
+    console.log('[useAuthApi] API base =', base || '(relative / same-origin)')
+  }
+
+  // Helper to build a correct absolute URL for the API endpoint.
+  // If `base` is empty we use the same origin (relative) path.
+  function apiUrl(path: string) {
+    // ensure path starts with a single leading slash
+    const p = path.startsWith('/') ? path : `/${path}`
+    if (!base) return p
+    try {
+      // new URL with an absolute path will produce the correct URL even if base contains a path
+      return new URL(p, base).toString()
+    } catch {
+      // fallback: naive join but avoid double slashes
+      return `${base.replace(/\/+$/, '')}${p}`
+    }
+  }
   const userState = useState<any>('user', () => null)
 
   // Kutsub POST /api/auth/login
   async function login(email: string, password: string) {
-    const res = await fetch(`${base}/api/auth/login`, {
+    const res = await fetch(apiUrl('/api/auth/login'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
@@ -24,7 +49,7 @@ export function useAuthApi() {
 
   // Kutsub POST /api/auth/register
   async function register(email: string, password: string, name?: string) {
-    const res = await fetch(`${base}/api/auth/register`, {
+    const res = await fetch(apiUrl('/api/auth/register'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
@@ -38,7 +63,7 @@ export function useAuthApi() {
   // Kutsub POST /api/auth/logout
   async function logout() {
     try {
-      const res = await fetch(`${base}/api/auth/logout`, {
+      const res = await fetch(apiUrl('/api/auth/logout'), {
         method: 'POST',
         credentials: 'include'
       })
@@ -59,7 +84,7 @@ export function useAuthApi() {
 
   // Kutsub GET /api/auth/me
   async function me() {
-    const res = await fetch(`${base}/api/auth/me`, {
+    const res = await fetch(apiUrl('/api/auth/me'), {
       method: 'GET',
       credentials: 'include'
     })
