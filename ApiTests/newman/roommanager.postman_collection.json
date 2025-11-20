@@ -8,6 +8,62 @@
 	},
 	"item": [
 		{
+			"name": "test_register",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// Try to register the test user. If already exists (409), fall back to login to obtain session cookie.",
+							"pm.test(\"Register or already exists\", () => pm.expect([201,409]).to.include(pm.response.code));",
+							"if (pm.response.code === 201) {",
+							"  const setCookie = pm.response.headers.get(\"set-cookie\");",
+							"  if (setCookie) {",
+							"    const m = setCookie.match(/rm_session=([^;]+)/);",
+							"    if (m) pm.environment.set(\"session_token\", m[1]);",
+							"  }",
+							"} else if (pm.response.code === 409) {",
+							"  // User exists: perform login to obtain cookie",
+							"  pm.sendRequest({",
+							"    url: pm.environment.get(\"url\") + '/api/auth/login',",
+							"    method: 'POST',",
+							"    header: { 'Content-Type': 'application/json' },",
+							"    body: { mode: 'raw', raw: JSON.stringify({ email: 'testuser@example.com', password: 'P@ssw0rd!' }) }",
+							"  }, function (err, res) {",
+							"    if (err) { console.error(err); return; }",
+							"    if (res) {",
+							"      const setCookie = res.headers.get('set-cookie');",
+							"      if (setCookie) {",
+							"        const m = setCookie.match(/rm_session=([^;]+)/);",
+							"        if (m) pm.environment.set('session_token', m[1]);",
+							"      }",
+							"    }",
+							"  });",
+							"}"
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n\"email\": \"testuser@example.com\",\n\"password\": \"P@ssw0rd!\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": "{{url}}/api/auth/register"
+			},
+			"response": []
+		},
+		{
 			"name": "test_login",
 			"event": [
 				{
@@ -70,8 +126,8 @@
 				"method": "GET",
 				"header": [
 					{
-						"key": "rm_session",
-						"value": "session_token",
+						"key": "Cookie",
+						"value": "rm_session={{session_token}}",
 						"type": "text"
 					}
 				],
@@ -85,8 +141,8 @@
 				"method": "POST",
 				"header": [
 					{
-						"key": "rm_session",
-						"value": "session_token",
+						"key": "Cookie",
+						"value": "rm_session={{session_token}}",
 						"type": "text"
 					}
 				],

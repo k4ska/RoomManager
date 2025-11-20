@@ -17,6 +17,22 @@ services:
       timeout: 5s
       retries: 12
 
+    networks:
+      - pg_net
+
+  pgadmin4:
+    image: dpage/pgadmin4:9.8
+    container_name: pgadmin4
+    ports:
+      - 8081:80
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=room@manager.com
+      - PGADMIN_DEFAULT_PASSWORD=parool
+    networks:
+      - pg_net
+
   backend:
     build: ./backend
     container_name: rm_backend
@@ -24,7 +40,10 @@ services:
     environment:
       PORT: 4000
       NODE_ENV: development
+      ASPNETCORE_URLS: http://0.0.0.0:4000
       ASPNETCORE_ENVIRONMENT: Development
+      # Allow local frontend during development
+      FRONTEND_ORIGIN: http://localhost:3000
       # JWT HS256 requires >= 256-bit (32-byte) key
       JWT_SECRET: 4c3f3bd13f6e4a6aa3f5c16f2c0d7cc1b2a1d9f84f0a3e5c7b9d2f1a6c4e3b1a
       SESSION_COOKIE_NAME: rm_session
@@ -35,18 +54,32 @@ services:
         condition: service_healthy
     ports:
       - "4000:4000"
+    networks:
+      - pg_net
 
   frontend:
     build: ./frontend
     container_name: rm_frontend
     restart: unless-stopped
     environment:
+      # `NUXT_PUBLIC_API_BASE` is the client-visible API base (used by the browser).
+      # For local development in a browser we want `http://localhost:4000` so
+      # client-side fetches resolve to the host-mapped backend port.
       NUXT_PUBLIC_API_BASE: http://localhost:4000
+      # `API_INTERNAL_BASE` is used by server-side rendering inside the
+      # frontend container so it can reach the backend service on the
+      # Docker network via the service name `backend`.
+      API_INTERNAL_BASE: http://backend:4000
     depends_on:
       - backend
     ports:
       - "3000:3000"
+    networks:
+      - pg_net
+
+networks:
+  pg_net:
 
 volumes:
   pgdata:
-
+  pgadmin-data:

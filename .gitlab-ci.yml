@@ -12,7 +12,7 @@ variables:
 
 stages:
   - build
-  # - api_test
+  - api_test
   - deploy
 
 default:
@@ -33,6 +33,7 @@ build:back-end:
   only:
     - master
     - main
+    - oskar
   script:
     - docker build -t ${DOCKER_REGISTRY}/back:${CI_COMMIT_SHA} --build-arg REGISTRY=${DOCKER_PUBLIC_REGISTRY} ./backend/
     - docker push ${DOCKER_REGISTRY}/back:${CI_COMMIT_SHA}
@@ -42,29 +43,32 @@ build:front-end:
   only:
     - master
     - main
+    - oskar
   script:
     - docker build -t ${DOCKER_REGISTRY}/front:${CI_COMMIT_SHA} --build-arg REGISTRY=${DOCKER_PUBLIC_REGISTRY} ./frontend/
     - docker push ${DOCKER_REGISTRY}/front:${CI_COMMIT_SHA}
   stage: build
 
-# api_test:
-#   image:
-#     name: docker:28.5.1-alpine3.22
-#     entrypoint: ["/bin/sh", "-c"]
-#   only:
-#     - master
-#     - main
-#   script:
-#     - cd ApiTests
-#     - docker compose up --abort-on-container-exit --exit-code-from newman
-#     - docker compose down -v
-#   stage: api_test
+api_test:
+  image:
+    name: docker:28.5.1-alpine3.22
+    entrypoint: ["/bin/sh", "-c"]
+  only:
+    - master
+    - main
+    - oskar
+  script:
+    - cd ApiTests
+    - docker compose up --abort-on-container-exit --exit-code-from newman
+    - docker compose down -v
+  stage: api_test
 
 deploy:
   when: manual
   only:
     - master
     - main
+    - oskar
   before_script:
     # teeme kindlaks, et ssh on installitud
     - "which ssh-agent || ( apt-get update -y && apt-get install openssh-client git -y )"
