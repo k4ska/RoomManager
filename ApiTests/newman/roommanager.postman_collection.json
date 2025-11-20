@@ -70,8 +70,8 @@
 				"method": "GET",
 				"header": [
 					{
-						"key": "rm_session",
-						"value": "session_token",
+						"key": "Cookie",
+						"value": "rm_session={{session_token}}",
 						"type": "text"
 					}
 				],
@@ -85,8 +85,8 @@
 				"method": "POST",
 				"header": [
 					{
-						"key": "rm_session",
-						"value": "session_token",
+						"key": "Cookie",
+						"value": "rm_session={{session_token}}",
 						"type": "text"
 					}
 				],
