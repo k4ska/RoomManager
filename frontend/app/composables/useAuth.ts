@@ -1,6 +1,12 @@
 // Lihtne autentimise abifunktsioon backend-i auth-endpointide kutsumiseks
 export function useAuthApi() {
-  const base = (import.meta as any).env?.NUXT_PUBLIC_API_BASE || process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
+  // Prefer Nuxt runtime public config so the frontend can call the correct backend
+  // when deployed. If not set, fall back to the current origin in the browser
+  // (so requests go to the same host that serves the frontend).
+  const runtime = useRuntimeConfig?.() as any || {}
+  const publicCfg = runtime.public || {}
+  const publicApiBase = publicCfg.NUXT_PUBLIC_API_BASE ?? publicCfg.apiBase
+  const base = publicApiBase || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : 'http://localhost:4000')
   const userState = useState<any>('user', () => null)
 
   // Kutsub POST /api/auth/login
