@@ -13,6 +13,9 @@ services:
     container_name: back_end
     environment:
       - ASPNETCORE_URLS=http://+:4000
+      - JWT_SECRET=4c3f3bd13f6e4a6aa3f5c16f2c0d7cc1b2a1d9f84f0a3e5c7b9d2f1a6c4e3b1a
+      - SESSION_COOKIE_NAME=rm_session
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/room_manager
     depends_on:
       - postgres
     networks:
