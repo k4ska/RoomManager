@@ -305,9 +305,69 @@
 		},
 		{
 			"name": "test_roomshape",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const jsonData = pm.response.json();\r",
+							"pm.environment.set(\"accessToken\", jsonData.token);\r",
+							"if (pm.response.code === 401) {\r",
+							"    pm.test(\"Unauthorized response\", function () {\r",
+							"        pm.expect(jsonData.ok).to.eql(false);\r",
+							"        pm.expect(jsonData).to.have.property(\"error\");\r",
+							"    });\r",
+							"} else {\r",
+							"    // Test 2: room exists\r",
+							"    pm.test(\"Response has roomId\", function () {\r",
+							"        pm.expect(jsonData).to.have.property(\"roomId\");\r",
+							"    });\r",
+							"\r",
+							"    // Test 3: shape is null or object\r",
+							"    pm.test(\"Shape is null or object\", function () {\r",
+							"        const shape = jsonData.shape;\r",
+							"        pm.expect(shape === null || typeof shape === \"object\").to.be.true;\r",
+							"    });\r",
+							"}\r",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
 			"request": {
 				"method": "GET",
-				"header": []
+				"header": [
+					{
+						"key": "rm_session",
+						"value": "session_token",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{url}}/api/room-shape",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"room-shape"
+					]
+				}
 			},
 			"response": []
 		}
