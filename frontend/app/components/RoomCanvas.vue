@@ -2,6 +2,14 @@
 import { useRoomShapeStore } from '~/stores/roomShape'
 const store = useRoomShapeStore()
 
+function snapToGrid(x: number, y: number) {
+  const gridSize = 40
+  return {
+    x: Math.round(x / gridSize) * gridSize,
+    y: Math.round(y / gridSize) * gridSize
+  }
+}
+
 // Checks if two line segments intersect
 function linesIntersect(a1: {x:number,y:number}, a2: {x:number,y:number}, b1: {x:number,y:number}, b2: {x:number,y:number}) {
   const det = (a2.x - a1.x) * (b2.y - b1.y) - (a2.y - a1.y) * (b2.x - b1.x)
@@ -44,7 +52,13 @@ function handleLayerClick(e: any) {
   const stage = e.target?.getStage?.()
   const pos = stage?.getPointerPosition?.()
   if (!pos) return
-  store.insertPointOnNearestEdge(pos.x, pos.y)
+  let x = pos.x
+  let y = pos.y
+  if (store.snapEnabled) {
+    const s = snapToGrid(x, y)
+    x = s.x; y = s.y
+  }
+  store.insertPointOnNearestEdge(x, y)
 }
 </script>
 
@@ -66,19 +80,19 @@ function handleLayerClick(e: any) {
         }" />
 
         <v-line
-          v-for="i in Math.floor(store.stage.width / 20) + 1"
+          v-for="i in Math.floor(store.stage.width / 40) + 1"
           :key="'v' + i"
           :config="{
-            points: [(i - 1) * 20, 0, (i - 1) * 20, store.stage.height],
+            points: [(i - 1) * 40, 0, (i - 1) * 40, store.stage.height],
             stroke: 'rgba(255,255,255,0.06)',
             strokeWidth: 1
           }"
         />
         <v-line
-          v-for="i in Math.floor(store.stage.height / 20) + 1"
+          v-for="i in Math.floor(store.stage.height / 40) + 1"
           :key="'h' + i"
           :config="{
-            points: [0, (i - 1) * 20, store.stage.width, (i - 1) * 20],
+            points: [0, (i - 1) * 40, store.stage.width, (i - 1) * 40],
             stroke: 'rgba(255,255,255,0.06)',
             strokeWidth: 1
           }"
@@ -106,10 +120,16 @@ function handleLayerClick(e: any) {
           @dragmove="e => {
             const newX = e.target.x()
             const newY = e.target.y()
-            if (canMovePoint(i, newX, newY)) {
-              store.updatePoint(i, newX, newY)
+            const target = store.snapEnabled ? snapToGrid(newX, newY) : { x: newX, y: newY }
+            if (canMovePoint(i, target.x, target.y)) {
+              // update store with (possibly snapped) coordinates so polygon follows
+              store.updatePoint(i, target.x, target.y)
+              // ensure visual handle is at exact coords
+              e.target.position({ x: target.x, y: target.y })
             } else {
-              e.target.position({ x: p.x, y: p.y })
+              // revert visual handle to the stored point
+              const cur = store.points[i] || { x: newX, y: newY }
+              e.target.position({ x: cur.x, y: cur.y })
             }
           }"
         />

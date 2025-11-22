@@ -7,6 +7,8 @@ interface Point { x: number; y: number }
 export const useRoomShapeStore = defineStore('roomShape', () => {
   const stage = reactive({ width: 800, height: 600 })
 
+  const snapEnabled = ref<boolean>(false) 
+
   const shape = ref<ShapeType>('rectangle')
   const points = ref<Point[]>([
     { x: 100, y: 100 },
@@ -25,10 +27,10 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
 
   // Uuendab punkti asukohta, hoides seda lava piirides
   function updatePoint(index: number, x: number, y: number) {
-    points.value[index] = {
-      x: clamp(x, 0, stage.width),
-      y: clamp(y, 0, stage.height)
-    }
+    const nx = clamp(x, 0, stage.width)
+    const ny = clamp(y, 0, stage.height)
+    // Use splice so Vue detects the array change and updates bindings
+    points.value.splice(index, 1, { x: nx, y: ny })
   }
 
   // Lähtestab toakuju vaikimisi ristkülikuks
@@ -73,6 +75,9 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
   function toggleAddPointMode() {
     addPointMode.value = !addPointMode.value
   }
+
+  //Lülitab grid snap funktsiooni
+  function toggleSnap() { snapEnabled.value = !snapEnabled.value }
 
   // Avab kuju valiku akna
   function openShapeModal() { showShapeModal.value = true }
@@ -126,6 +131,8 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     openShapeModal,
     closeShapeModal,
     insertPointOnNearestEdge,
+    snapEnabled,
+    toggleSnap,
     // Laeb salvestatud toakuju backendist (kui on)
     async loadFromServer() {
       try {
