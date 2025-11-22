@@ -28,7 +28,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n\"name\": \"TEST uus kasutaja\",\r\n\"email\": \"test@register.com\",\r\n\"password\": \"register\"\r\n}",
+					"raw": "{\r\n\"email\": \"test3@register.com\",\r\n\"password\": \"register\"\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"
