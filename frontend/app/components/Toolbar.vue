@@ -2,6 +2,7 @@
   <div class="toolbar">
     <button class="btn" @click="newRoom">Uus ruum</button>
     <button class="btn" :class="{ active: store.addPointMode }" @click="toggleAdd">Lisa tipp</button>
+    <button class="btn" :class="{ active: store.snapEnabled }" @click="toggleSnap">Snap on</button>
     <button class="btn success" @click="save">Salvesta ruum</button>
   </div>
 </template>
@@ -18,6 +19,8 @@ const storage = useStorageStore()
 const newRoom = () => { store.resetShape(); storage.clear() }
 // Toggles point-adding mode for the room shape
 const toggleAdd = () => store.toggleAddPointMode()
+// Toggles grid snapping
+const toggleSnap = () => store.toggleSnap()
 // Navigates to the storage layout page
 const save = async () => { try { await store.saveToServer() } catch {} ; router.push('/storage') }
 </script>
