@@ -11,7 +11,11 @@
         @click="quickAdd(item)"
         :title="item.label"
       >
-        <span class="emoji">{{ item.emoji }}</span>
+        <img 
+          :src="getEmojiImageUrl(item.emoji)" 
+          class="emoji"
+          alt=""
+        />
         <span class="label">{{ item.label }}</span>
       </div>
     </div>
@@ -30,7 +34,7 @@ const room = useRoomShapeStore()
 
 // Source list for available storage unit types
 const list = [
-  { type: 'box',       label: 'Kast',            emoji: '📦' },
+  { type: 'box',       label: 'Kast',            emoji: '📦️' },
   { type: 'cabinet',   label: 'Kapp',            emoji: '🗄️' },
   { type: 'shelf',     label: 'Riiul',           emoji: '🪜' },
   { type: 'table',     label: 'Laud',            emoji: '⛩' },
@@ -39,6 +43,16 @@ const list = [
   { type: 'workbench', label: 'Töölaud',         emoji: '🛠️' }
 ] as { type: StorageType, label: string, emoji: string }[]
 
+
+// Convert emoji to Twemoji CDN URL
+function getEmojiImageUrl(emoji: string): string {
+  const codePoints = [...emoji]
+    .map(char => char.codePointAt(0))
+    .filter(cp => cp !== undefined && cp !== 0xfe0f)
+    .map(cp => cp!.toString(16))
+    .join('-')
+  return `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/${codePoints}.svg`
+}
 // Starts dragging with a JSON payload
 function onDragStart(item: { type: StorageType, emoji: string }, e: DragEvent) {
   const payload = JSON.stringify({ type: item.type, emoji: item.emoji })
@@ -112,6 +126,10 @@ async function quickAdd(item: { type: StorageType, emoji: string }) {
   if (!unit) return
   const pos = snapRectInsideRoom(unit.x, unit.y, unit.w, unit.h, unit.rotation)
   await store.updatePos(id, pos.x, pos.y)
+
+  if (typeof window !== 'undefined') {
+    (window as any).__rm_redrawCanvas?.()
+  }
 }
 </script>
 
@@ -147,13 +165,8 @@ h3 {
   background: rgba(148,163,184,0.22); 
 }
 .emoji {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 1.6rem;
   height: 1.6rem;
-  font-size: 1.25rem;
-  line-height: 1;
 }
 .label { 
   line-height: 1.2; 

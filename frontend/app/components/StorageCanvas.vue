@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref} from 'vue'
 import { useRoomShapeStore } from '~/stores/roomShape'
 import { useStorageStore, type StorageType } from '~/stores/storageStore'
+
 
 const room = useRoomShapeStore()
 const storage = useStorageStore()
@@ -17,6 +18,16 @@ const MIN = 30 // minimum side length in pixels
 const PADDING = 4 //emoji ümber ruum
 const WALL_MARGIN = 2 // minimum distance from walls in pixels
 const DELETE_BTN_SIZE = 24 // size of delete button
+
+// Convert emoji to Twemoji CDN URL
+function getEmojiImageUrl(emoji: string): string {
+  const codePoints = [...emoji]
+    .map(char => char.codePointAt(0))
+    .filter(cp => cp !== undefined && cp !== 0xfe0f) // Remove variation selector
+    .map(cp => cp!.toString(16))
+    .join('-')
+  return `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/${codePoints}.svg`
+}
 
 // Tagastab väärtuse piiratud vahemikus [min, max]
 function clampValue(v: number, min: number, max: number) {
@@ -166,8 +177,9 @@ async function deleteItem(id: number) {
 }
 }
 
-// Sets up drag-and-drop for adding new items to the canvas
 onMounted(() => {
+
+  // Setup drag-and-drop
   const node = stageRef.value?.getNode?.()
   const container = node?.container?.()
   if (!container) return
@@ -193,20 +205,24 @@ onMounted(() => {
     const x = clampValue(e.clientX - rect.left, 0, room.stage.width)
     const y = clampValue(e.clientY - rect.top, 0, room.stage.height)
 
-    // Place by top-left, then snap fully inside the room
     const id = await storage.addUnit(type, x, y, emoji)
     const item = storage.items.find(i => i.id === id)!
     const pos = snapRectInsideRoom(item.x, item.y, item.w, item.h, item.rotation)
     await storage.updatePos(id, pos.x, pos.y)
+    
     selectedId.value = id
     selectedIds.value = [id]
     attachTransformer()
+    
     if (typeof window !== 'undefined') {
-    const setSelected = (window as any).__rm_setSelected
-    const setSelectedIds = (window as any).__rm_setSelectedIds
-    if (setSelected) setSelected(selectedId.value)
-    if (setSelectedIds) setSelectedIds(selectedIds.value)
-}
+      const setSelected = (window as any).__rm_setSelected
+      const setSelectedIds = (window as any).__rm_setSelectedIds
+      if (setSelected) setSelected(id)
+      if (setSelectedIds) setSelectedIds([id])
+    }
+
+    const layer = layerRef.value?.getNode?.()
+    if (layer) layer.batchDraw()
   })
 })
 
@@ -314,141 +330,150 @@ function onTransformEnd(id: number, e: any) {
 
 <template>
   <div class="canvas-wrap">
-    <v-stage ref="stageRef" :config="{
-        width: room.stage.width,
-        height: room.stage.height
-      }">
-      <v-layer ref="layerRef">
-        <v-rect :config="{
-            id: 'bg',
-            x: 0,
-            y: 0,
-            width: room.stage.width,
-            height: room.stage.height,
-            fill: '#0b1222'
-          }" @mousedown="clearSelection" />
-
-        <v-line
-          :points="room.points.flatMap(p => [p.x, p.y])"
-          :closed="true"
-          :stroke="'#e5e7eb'"
-          :strokeWidth="2.5"
-          :fill="'rgba(16,185,129,0.06)'"
-          @mousedown="clearSelection"
-        />
-
-        <template v-for="item in storage.items" :key="item.id">
-          <v-group
-            :config="{
-              id: `unit-${item.id}`,
-              x: item.x + item.w/2,
-              y: item.y + item.h/2,
-              offsetX: 0,
-              offsetY: 0,
-              rotation: item.rotation,
-              draggable: true,
-              dragBoundFunc: function(pos:any){
-                const wantedCenter = { x: pos.x, y: pos.y }
-                const tx = wantedCenter.x - item.w/2
-                const ty = wantedCenter.y - item.h/2
-
-                if (isRectFullyInsideRoom(tx, ty, item.w, item.h, item.rotation)) {
-                  return wantedCenter
-                }
-
-                const validCenter = findClosestCenterInsideRoom(wantedCenter, item.w, item.h, item.rotation)
-                return validCenter
-              }
-            }"
-            @mouseenter="() => hoverId = item.id"
-            @mouseleave="() => hoverId = (hoverId===item.id?null:hoverId)"
-            @click="(e: any) => onRectClick(item.id, e)"
-            @dragend="(e: any) => onDragEnd(item.id, e, item)"
-            @transformend="(e: any) => onTransformEnd(item.id, e)"
-          >
-            
-            <v-rect :config="{
-              x: -item.w/2,
-              y: -item.h/2,
-              width: item.w,
-              height: item.h,
-              cornerRadius: 8,
-              fill: 'rgba(148,163,184,0.12)',
-              stroke: (hoverId===item.id || selectedIds.includes(item.id)) ? '#93c5fd' : '#334155',
-              strokeWidth: (hoverId===item.id || selectedIds.includes(item.id)) ? 2 : 1
-            }" />
-
-            <v-text :config="{
-              x: -item.w/2,
-              y: -item.h/2,
-              width: item.w,
-              height: item.h,
-              align: 'center',
-              verticalAlign: 'middle',
-              text: item.emoji,
-              fontSize: Math.min(item.w, item.h) - PADDING
-            }" />
-
-            <v-group
-              v-if="hoverId === item.id"
-              :config="{
-                x: item.w/2 - DELETE_BTN_SIZE/2,
-                y: -item.h/2 - DELETE_BTN_SIZE/2,
-                listening: true
-              }"
-              @click="(e : any) => { e.cancelBubble = true; deleteItem(item.id); }"
-              @tap="(e: any) => { e.cancelBubble = true; deleteItem(item.id); }"
-              @mousedown="(e: any) => e.cancelBubble = true"
-              @touchstart="(e: any) => e.cancelBubble = true"
-            >
-              <v-circle :config="{
+    <div class="canvas-container" :style="{ width: room.stage.width + 'px', height: room.stage.height + 'px' }">
+      <v-stage ref="stageRef" :config="{
+          width: room.stage.width,
+          height: room.stage.height
+        }">
+        <v-layer ref="layerRef">
+          <v-rect :config="{
+              id: 'bg',
               x: 0,
               y: 0,
-              radius: DELETE_BTN_SIZE/2,
-              fill: '#ef4444',
-              stroke: '#ffffff',
-              strokeWidth: 2,
-              shadowColor: '#000000',
-              shadowBlur: 4,
-              shadowOpacity: 0.3,
-              listening: true
-            }" 
-            @mouseenter="(e: any) => { e.target.fill('#dc2626'); e.target.getLayer().batchDraw(); }"
-            @mouseleave="(e: any) => { e.target.fill('#ef4444'); e.target.getLayer().batchDraw(); }"
-            />
+              width: room.stage.width,
+              height: room.stage.height,
+              fill: '#0b1222'
+            }" @mousedown="clearSelection" />
+
+          <v-line
+            :points="room.points.flatMap(p => [p.x, p.y])"
+            :closed="true"
+            :stroke="'#e5e7eb'"
+            :strokeWidth="2.5"
+            :fill="'rgba(16,185,129,0.06)'"
+            @mousedown="clearSelection"
+          />
+
+          <template v-for="item in storage.items" :key="item.id">
+            <v-group
+              :config="{
+                id: `unit-${item.id}`,
+                x: item.x + item.w/2,
+                y: item.y + item.h/2,
+                offsetX: 0,
+                offsetY: 0,
+                rotation: item.rotation,
+                draggable: true,
+                dragBoundFunc: function(pos:any){
+                  const wantedCenter = { x: pos.x, y: pos.y }
+                  const tx = wantedCenter.x - item.w/2
+                  const ty = wantedCenter.y - item.h/2
+
+                  if (isRectFullyInsideRoom(tx, ty, item.w, item.h, item.rotation)) {
+                    return wantedCenter
+                  }
+
+                  const validCenter = findClosestCenterInsideRoom(wantedCenter, item.w, item.h, item.rotation)
+                  return validCenter
+                }
+              }"
+              @mouseenter="() => hoverId = item.id"
+              @mouseleave="() => hoverId = (hoverId===item.id?null:hoverId)"
+              @click="(e: any) => onRectClick(item.id, e)"
+              @dragend="(e: any) => onDragEnd(item.id, e, item)"
+              @transformend="(e: any) => onTransformEnd(item.id, e)"
+            >
               
-              <v-text :config="{
-                x: -DELETE_BTN_SIZE/2,
-                y: -DELETE_BTN_SIZE/2,
-                width: DELETE_BTN_SIZE,
-                height: DELETE_BTN_SIZE,
-                text: '✕',
-                fontSize: 16,
-                fontStyle: 'bold',
-                fill: '#ffffff',
-                align: 'center',
-                verticalAlign: 'middle',
-                listening: false
+              <v-rect :config="{
+                x: -item.w/2,
+                y: -item.h/2,
+                width: item.w,
+                height: item.h,
+                cornerRadius: 8,
+                fill: 'rgba(148,163,184,0.12)',
+                stroke: (hoverId===item.id || selectedIds.includes(item.id)) ? '#93c5fd' : '#334155',
+                strokeWidth: (hoverId===item.id || selectedIds.includes(item.id)) ? 2 : 1
               }" />
-              
+
+              <v-group
+                v-if="hoverId === item.id"
+                :config="{
+                  x: item.w/2 - DELETE_BTN_SIZE/2,
+                  y: -item.h/2 - DELETE_BTN_SIZE/2,
+                  listening: true
+                }"
+                @click="(e : any) => { e.cancelBubble = true; deleteItem(item.id); }"
+                @tap="(e: any) => { e.cancelBubble = true; deleteItem(item.id); }"
+                @mousedown="(e: any) => e.cancelBubble = true"
+                @touchstart="(e: any) => e.cancelBubble = true"
+              >
+                <v-circle :config="{
+                  x: 0,
+                  y: 0,
+                  radius: DELETE_BTN_SIZE/2,
+                  fill: '#ef4444',
+                  stroke: '#ffffff',
+                  strokeWidth: 2,
+                  shadowColor: '#000000',
+                  shadowBlur: 4,
+                  shadowOpacity: 0.3,
+                  listening: true
+                }" 
+                @mouseenter="(e: any) => { e.target.fill('#dc2626'); e.target.getLayer().batchDraw(); }"
+                @mouseleave="(e: any) => { e.target.fill('#ef4444'); e.target.getLayer().batchDraw(); }"
+                />
+                
+                <v-text :config="{
+                  x: -DELETE_BTN_SIZE/2,
+                  y: -DELETE_BTN_SIZE/2,
+                  width: DELETE_BTN_SIZE,
+                  height: DELETE_BTN_SIZE,
+                  text: '✕',
+                  fontSize: 16,
+                  fontStyle: 'bold',
+                  fill: '#ffffff',
+                  align: 'center',
+                  verticalAlign: 'middle',
+                  listening: false
+                }" />
+              </v-group>
             </v-group>
-          </v-group>
-        </template>
+          </template>
 
-        <v-transformer
-          ref="transformerRef"
-          :config="{
-            rotateEnabled: true,
-            enabledAnchors: ['top-left','top-right','bottom-left','bottom-right'],
-            boundBoxFunc: (oldBox:any, newBox:any) => {
-              const side = Math.max(MIN, Math.max(newBox.width, newBox.height))
-              return { ...newBox, width: side, height: side }
-            }
-          }"
+          <v-transformer
+            ref="transformerRef"
+            :config="{
+              rotateEnabled: true,
+              enabledAnchors: ['top-left','top-right','bottom-left','bottom-right'],
+              boundBoxFunc: (oldBox:any, newBox:any) => {
+                const side = Math.max(MIN, Math.max(newBox.width, newBox.height))
+                return { ...newBox, width: side, height: side }
+              }
+            }"
+          />
+        </v-layer>
+      </v-stage>
+
+       <!-- HTML Emoji Overlay -->
+      <div 
+        v-for="item in storage.items" 
+        :key="'emoji-' + item.id"
+        class="emoji-overlay"
+        :style="{
+          left: item.x + 'px',
+          top: item.y + 'px',
+          width: item.w + 'px',
+          height: item.h + 'px',
+          transform: 'rotate(' + item.rotation + 'deg)'
+        }"
+      >
+        <img 
+          :src="getEmojiImageUrl(item.emoji)" 
+          :style="{ width: (item.w - PADDING) + 'px', height: (item.h - PADDING) + 'px' }"
+          alt=""
         />
-
-      </v-layer>
-    </v-stage>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -456,5 +481,18 @@ function onTransformEnd(id: number, e: any) {
 .canvas-wrap { 
   display: flex; 
   justify-content: center; 
+}
+
+.canvas-container {
+  position: relative;
+}
+
+.emoji-overlay {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 10;
 }
 </style>

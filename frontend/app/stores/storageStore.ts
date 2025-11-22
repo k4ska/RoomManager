@@ -35,7 +35,7 @@ const LABEL: Record<StorageType, string> = {
 
 // Emoji mapping per spec
 const META: Record<StorageType, { w: number; h: number; emoji: string }> = {
-  box: { w: UNIT_SIZE, h: UNIT_SIZE, emoji: '📦' },
+  box: { w: UNIT_SIZE, h: UNIT_SIZE, emoji: '📦️' },
   cabinet: { w: UNIT_SIZE, h: UNIT_SIZE, emoji: '🗄️' },
   shelf: { w: UNIT_SIZE, h: UNIT_SIZE, emoji: '🪟' },
   table: { w: UNIT_SIZE, h: UNIT_SIZE, emoji: '🪑' },
