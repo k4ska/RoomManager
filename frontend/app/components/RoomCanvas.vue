@@ -54,6 +54,8 @@ function handleLayerClick(e: any) {
       width: store.stage.width,
       height: store.stage.height
     }">
+
+    
       <v-layer @click="handleLayerClick">
         <v-rect :config="{
           x: 0,
@@ -62,6 +64,26 @@ function handleLayerClick(e: any) {
           height: store.stage.height,
           fill: '#0b1222'
         }" />
+
+        <v-line
+          v-for="i in Math.floor(store.stage.width / 20) + 1"
+          :key="'v' + i"
+          :config="{
+            points: [(i - 1) * 20, 0, (i - 1) * 20, store.stage.height],
+            stroke: 'rgba(255,255,255,0.06)',
+            strokeWidth: 1
+          }"
+        />
+        <v-line
+          v-for="i in Math.floor(store.stage.height / 20) + 1"
+          :key="'h' + i"
+          :config="{
+            points: [0, (i - 1) * 20, store.stage.width, (i - 1) * 20],
+            stroke: 'rgba(255,255,255,0.06)',
+            strokeWidth: 1
+          }"
+        />
+
         <v-line
           :points="store.points.flatMap(p => [p.x, p.y])"
           :closed="true"

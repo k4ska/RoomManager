@@ -430,6 +430,7 @@ function onTransformEnd(id: number, e: any) {
                 verticalAlign: 'middle',
                 listening: false
               }" />
+              
             </v-group>
           </v-group>
         </template>
