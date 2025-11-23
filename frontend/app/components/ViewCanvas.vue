@@ -10,6 +10,22 @@ const emit = defineEmits<{ (e: 'select', id: number | null): void }>()
 
 const hoverId = ref<number | null>(null)
 const EMOJI_SIZE = 20
+const imageCache = new Map<string, HTMLImageElement | null>()
+
+function isImageEmoji(value: string | null | undefined) {
+  return !!value && (value.startsWith('data:image') || value.startsWith('http'))
+}
+
+function getImage(value: string | null | undefined) {
+  if (!isImageEmoji(value)) return null
+  if (typeof Image === 'undefined') return null
+  if (!imageCache.has(value!)) {
+    const img = new Image()
+    img.src = value!
+    imageCache.set(value!, img)
+  }
+  return imageCache.get(value!) || null
+}
 
 // Builds a short multi-line summary of unit contents
 function linesFor(item: { contents?: { name: string; quantity: number }[] }) {
@@ -65,16 +81,30 @@ function linesFor(item: { contents?: { name: string; quantity: number }[] }) {
               stroke: hoverId===item.id ? '#93c5fd' : undefined,
               strokeWidth: hoverId===item.id ? 2 : 0
             }" />
-            <v-text :config="{
-              x: -item.w/2,
-              y: -item.h/2,
-              width: item.w,
-              height: item.h,
-              align: 'center',
-              verticalAlign: 'middle',
-              text: item.emoji,
-              fontSize: Math.max(EMOJI_SIZE, Math.min(item.w, item.h) * 0.5)
-            }" />
+            <v-image
+              v-if="isImageEmoji(item.emoji)"
+              :config="{
+                x: -item.w/2,
+                y: -item.h/2,
+                width: item.w,
+                height: item.h,
+                image: getImage(item.emoji) || undefined,
+                listening: false
+              }"
+            />
+            <v-text
+              v-else
+              :config="{
+                x: -item.w/2,
+                y: -item.h/2,
+                width: item.w,
+                height: item.h,
+                align: 'center',
+                verticalAlign: 'middle',
+                text: item.emoji,
+                fontSize: Math.max(EMOJI_SIZE, Math.min(item.w, item.h) * 0.5)
+              }"
+            />
 
           </v-group>
 
