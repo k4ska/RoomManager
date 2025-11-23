@@ -296,6 +296,25 @@ function onDragEnd(id: number, e: {target:any}, item: any) {
   storage.updatePos(id, pos.x, pos.y)
 }
 
+// Jalgib reaalajas, et suurendatav yksus ei lahkuks ruumist
+function onTransform(id: number, e: any) {
+  const node = e.target
+  const item = storage.items.find(i => i.id === id)
+  if (!item) return
+  const scale = node.scaleX() || 1
+  const side = Math.max(MIN, item.w * scale)
+  const rot = ((node.rotation() % 360) + 360) % 360
+  const x = node.x() - side / 2
+  const y = node.y() - side / 2
+  if (!isRectFullyInsideRoom(x, y, side, side, rot)) {
+    const prev = (node as any)._rmLastScale ?? 1
+    node.scaleX(prev)
+    node.scaleY(prev)
+    return
+  }
+  (node as any)._rmLastScale = scale
+}
+
 // Uuendab suuruse ja pöördenurga peale transformatsiooni lõppu
 function onTransformEnd(id: number, e: any) {
   const node = e.target
@@ -304,10 +323,13 @@ function onTransformEnd(id: number, e: any) {
   const side = Math.max(MIN, item.w * scale)
   node.scaleX(1)
   node.scaleY(1)
+  ;(node as any)._rmLastScale = 1
   const rot = ((node.rotation() % 360) + 360) % 360
   const x = node.x() - side / 2
   const y = node.y() - side / 2
   const pos = snapRectInsideRoom(x, y, side, side, rot)
+  node.x(pos.x + side / 2)
+  node.y(pos.y + side / 2)
   storage.updateUnit(id, { x: pos.x, y: pos.y, w: side, h: side, rotation: rot })
 }
 </script>
@@ -364,6 +386,7 @@ function onTransformEnd(id: number, e: any) {
             @mouseleave="() => hoverId = (hoverId===item.id?null:hoverId)"
             @click="(e: any) => onRectClick(item.id, e)"
             @dragend="(e: any) => onDragEnd(item.id, e, item)"
+            @transform="(e: any) => onTransform(item.id, e)"
             @transformend="(e: any) => onTransformEnd(item.id, e)"
           >
             
@@ -441,8 +464,21 @@ function onTransformEnd(id: number, e: any) {
             rotateEnabled: true,
             enabledAnchors: ['top-left','top-right','bottom-left','bottom-right'],
             boundBoxFunc: (oldBox:any, newBox:any) => {
-              const side = Math.max(MIN, Math.max(newBox.width, newBox.height))
-              return { ...newBox, width: side, height: side }
+              const rawWidth = Math.abs(newBox.width)
+              const rawHeight = Math.abs(newBox.height)
+              const side = Math.max(MIN, Math.max(rawWidth, rawHeight))
+              const centerX = newBox.x + (newBox.width / 2)
+              const centerY = newBox.y + (newBox.height / 2)
+              const topLeftX = centerX - side / 2
+              const topLeftY = centerY - side / 2
+              const rotation = typeof newBox.rotation === 'number' ? newBox.rotation : (oldBox.rotation || 0)
+              // Takistab, et kasutaja ei venitaks yksust ruumi piiridest valja
+              if (!isRectFullyInsideRoom(topLeftX, topLeftY, side, side, rotation)) {
+                return oldBox
+              }
+              const widthSign = newBox.width >= 0 ? 1 : -1
+              const heightSign = newBox.height >= 0 ? 1 : -1
+              return { ...newBox, width: widthSign * side, height: heightSign * side }
             }
           }"
         />
