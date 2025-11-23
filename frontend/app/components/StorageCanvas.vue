@@ -12,6 +12,7 @@ const transformerRef = ref<any>(null)
 const selectedId = ref<number | null>(null)
 const selectedIds = ref<number[]>([])
 const hoverId = ref<number | null>(null)
+const imageCache = new Map<string, HTMLImageElement | null>()
 
 const MIN = 30 // minimum side length in pixels
 const PADDING = 4 //emoji ümber ruum
@@ -21,6 +22,21 @@ const DELETE_BTN_SIZE = 24 // size of delete button
 // Tagastab väärtuse piiratud vahemikus [min, max]
 function clampValue(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v))
+}
+
+function isImageEmoji(value: string | undefined | null) {
+  return !!value && (value.startsWith('data:image') || value.startsWith('http'))
+}
+
+function getImage(value: string | undefined | null) {
+  if (!isImageEmoji(value)) return null
+  if (typeof Image === 'undefined') return null
+  if (!imageCache.has(value!)) {
+    const img = new Image()
+    img.src = value!
+    imageCache.set(value!, img)
+  }
+  return imageCache.get(value!) || null
 }
 
 // Tagastab hulknurga keskpunkti
@@ -177,6 +193,7 @@ onMounted(() => {
     e.preventDefault()
     let type = 'box' as StorageType
     let emoji: string | undefined
+    let name: string | undefined
 
     const json = e.dataTransfer?.getData('application/json')
     if (json) {
@@ -184,6 +201,7 @@ onMounted(() => {
         const data = JSON.parse(json)
         if (data?.type) type = data.type as StorageType
         if (typeof data?.emoji === 'string') emoji = data.emoji
+        if (typeof data?.name === 'string') name = data.name
       } catch {}
     } else {
       type = (e.dataTransfer?.getData('text/plain') || 'box') as StorageType
@@ -194,7 +212,7 @@ onMounted(() => {
     const y = clampValue(e.clientY - rect.top, 0, room.stage.height)
 
     // Place by top-left, then snap fully inside the room
-    const id = await storage.addUnit(type, x, y, emoji)
+    const id = await storage.addUnit(type, x, y, emoji, name)
     const item = storage.items.find(i => i.id === id)!
     const pos = snapRectInsideRoom(item.x, item.y, item.w, item.h, item.rotation)
     await storage.updatePos(id, pos.x, pos.y)
@@ -401,16 +419,30 @@ function onTransformEnd(id: number, e: any) {
               strokeWidth: (hoverId===item.id || selectedIds.includes(item.id)) ? 2 : 1
             }" />
 
-            <v-text :config="{
-              x: -item.w/2,
-              y: -item.h/2,
-              width: item.w,
-              height: item.h,
-              align: 'center',
-              verticalAlign: 'middle',
-              text: item.emoji,
-              fontSize: Math.min(item.w, item.h) - PADDING
-            }" />
+            <v-image
+              v-if="isImageEmoji(item.emoji)"
+              :config="{
+                x: -item.w/2,
+                y: -item.h/2,
+                width: item.w,
+                height: item.h,
+                image: getImage(item.emoji) || undefined,
+                listening: false
+              }"
+            />
+            <v-text
+              v-else
+              :config="{
+                x: -item.w/2,
+                y: -item.h/2,
+                width: item.w,
+                height: item.h,
+                align: 'center',
+                verticalAlign: 'middle',
+                text: item.emoji,
+                fontSize: Math.min(item.w, item.h) - PADDING
+              }"
+            />
 
             <v-group
               v-if="hoverId === item.id"
