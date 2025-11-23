@@ -16,6 +16,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     { x: 700, y: 500 },
     { x: 100, y: 500 }
   ])
+  const VIEW_MARGIN = 60 // jätab ruumi serva ja toa vahel
 
   const addPointMode = ref(false)
   const showShapeModal = ref(false)
@@ -23,6 +24,40 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
   // Piirab väärtuse vahemikku [min, max]
   function clamp(v: number, min: number, max: number) {
     return Math.max(min, Math.min(max, v))
+  }
+
+  // Skaleerib antud punktid lava mõõtu jättes serva ääre alla
+  function normalizeToStage(src: Point[]): Point[] {
+    if (!src?.length) return src
+    let minX = Number.POSITIVE_INFINITY
+    let minY = Number.POSITIVE_INFINITY
+    let maxX = Number.NEGATIVE_INFINITY
+    let maxY = Number.NEGATIVE_INFINITY
+    for (const p of src) {
+      if (p.x < minX) minX = p.x
+      if (p.y < minY) minY = p.y
+      if (p.x > maxX) maxX = p.x
+      if (p.y > maxY) maxY = p.y
+    }
+    if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) return src
+    const width = Math.max(1, maxX - minX)
+    const height = Math.max(1, maxY - minY)
+    const availW = Math.max(10, stage.width - VIEW_MARGIN * 2)
+    const availH = Math.max(10, stage.height - VIEW_MARGIN * 2)
+    const scale = Math.min(availW / width, availH / height)
+    const scaledW = width * scale
+    const scaledH = height * scale
+    const offsetX = (stage.width - scaledW) / 2
+    const offsetY = (stage.height - scaledH) / 2
+    return src.map(p => ({
+      x: offsetX + (p.x - minX) * scale,
+      y: offsetY + (p.y - minY) * scale
+    }))
+  }
+
+  // Rakendab normaliseerimist praegustele punktidele
+  function normalizeCurrent() {
+    points.value = normalizeToStage(points.value)
   }
 
   // Uuendab punkti asukohta, hoides seda lava piirides
@@ -69,6 +104,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
         { x: w * 0.15, y: h * 0.8 }
       ]
     }
+    normalizeCurrent()
   }
 
   // Lülitab punktide lisamise režiimi
@@ -140,7 +176,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
         const res = await fetch(`${base}/api/room-shape`, { credentials: 'include' })
         const data = await res.json()
         if (data?.ok && Array.isArray(data.shape)) {
-          points.value = data.shape
+          points.value = normalizeToStage(data.shape)
         }
       } catch {}
     },
@@ -148,6 +184,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     async saveToServer() {
       try {
         const base = (import.meta as any).env?.NUXT_PUBLIC_API_BASE || (process.env as any)?.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
+        normalizeCurrent()
         await fetch(`${base}/api/room-shape`, {
           method: 'PATCH',
           credentials: 'include',

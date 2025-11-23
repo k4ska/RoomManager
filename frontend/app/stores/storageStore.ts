@@ -1,12 +1,13 @@
 import { defineStore } from 'pinia'
 
 export type StorageType = 'box' | 'cabinet' | 'shelf' | 'table' | 'drawer' | 'locker' | 'workbench'
+export type StorageKind = StorageType | 'custom' | string
 
 export interface StoredObject { name: string; quantity: number }
 
 export interface StorageUnit {
   id: number
-  type: StorageType
+  type: StorageKind
   x: number // top-left
   y: number // top-left
   w: number
@@ -60,7 +61,7 @@ export const useStorageStore = defineStore('storage', () => {
   function mapUnit(u: any): StorageUnit {
     return {
       id: u.id,
-      type: u.type,
+      type: u.type as StorageKind,
       x: u.x,
       y: u.y,
       w: u.w,
@@ -103,9 +104,20 @@ export const useStorageStore = defineStore('storage', () => {
 
 
   // Adds a new storage unit to the canvas
-  async function addUnit(type: StorageType, x: number, y: number, emojiOverride?: string) {
-    const meta = META[type]
-    const optimistic: StorageUnit = { id: idSeq++, type, x, y, w: meta.w, h: meta.h, rotation: 0, emoji: (emojiOverride ?? meta.emoji), name: (LABEL ? LABEL[type] : undefined), contents: [] }
+  async function addUnit(type: StorageKind, x: number, y: number, emojiOverride?: string, nameOverride?: string) {
+    const meta = META[type as StorageType] ?? { w: UNIT_SIZE, h: UNIT_SIZE, emoji: emojiOverride ?? '🧩' }
+    const optimistic: StorageUnit = {
+      id: idSeq++,
+      type,
+      x,
+      y,
+      w: meta.w,
+      h: meta.h,
+      rotation: 0,
+      emoji: (emojiOverride ?? meta.emoji),
+      name: nameOverride ?? (LABEL ? LABEL[type as StorageType] : undefined),
+      contents: []
+    }
     items.value.push(optimistic)
     return optimistic.id
   }
