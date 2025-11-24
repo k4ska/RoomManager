@@ -363,21 +363,29 @@ function onTransformEnd(id: number, e: any) {
 
 <template>
   <div class="canvas-wrap">
-    <div class="canvas-container" :style="{ width: room.stage.width + 'px', height: room.stage.height + 'px' }">
-      <v-stage ref="stageRef" :config="{
-          width: room.stage.width,
-          height: room.stage.height
-        }">
+    <div
+      class="canvas-container"
+      :style="{ width: room.stage.width + 'px', height: room.stage.height + 'px' }"
+    >
+      <v-stage
+        ref="stageRef"
+        :config="{ width: room.stage.width, height: room.stage.height }"
+      >
         <v-layer ref="layerRef">
-          <v-rect :config="{
+          <!-- Background -->
+          <v-rect
+            :config="{
               id: 'bg',
               x: 0,
               y: 0,
               width: room.stage.width,
               height: room.stage.height,
               fill: '#0b1222'
-            }" @mousedown="clearSelection" />
+            }"
+            @mousedown="clearSelection"
+          />
 
+          <!-- Room Shape -->
           <v-line
             :points="room.points.flatMap(p => [p.x, p.y])"
             :closed="true"
@@ -387,152 +395,162 @@ function onTransformEnd(id: number, e: any) {
             @mousedown="clearSelection"
           />
 
+          <!-- Storage Items -->
           <template v-for="item in storage.items" :key="item.id">
             <v-group
               :config="{
                 id: `unit-${item.id}`,
-                x: item.x + item.w/2,
-                y: item.y + item.h/2,
+                x: item.x + item.w / 2,
+                y: item.y + item.h / 2,
                 offsetX: 0,
                 offsetY: 0,
                 rotation: item.rotation,
                 draggable: true,
-                dragBoundFunc: function(pos:any){
-                  const wantedCenter = { x: pos.x, y: pos.y }
-                  const tx = wantedCenter.x - item.w/2
-                  const ty = wantedCenter.y - item.h/2
+                dragBoundFunc: function (pos) {
+                  const wantedCenter = { x: pos.x, y: pos.y };
+                  const tx = wantedCenter.x - item.w / 2;
+                  const ty = wantedCenter.y - item.h / 2;
 
                   if (isRectFullyInsideRoom(tx, ty, item.w, item.h, item.rotation)) {
-                    return wantedCenter
+                    return wantedCenter;
                   }
 
-                const validCenter = findClosestCenterInsideRoom(wantedCenter, item.w, item.h, item.rotation)
-                return validCenter
-              }
-            }"
-            @mouseenter="() => hoverId = item.id"
-            @mouseleave="() => hoverId = (hoverId===item.id?null:hoverId)"
-            @click="(e: any) => onRectClick(item.id, e)"
-            @dragend="(e: any) => onDragEnd(item.id, e, item)"
-            @transform="(e: any) => onTransform(item.id, e)"
-            @transformend="(e: any) => onTransformEnd(item.id, e)"
-          >
-            
-            <v-rect :config="{
-              x: -item.w/2,
-              y: -item.h/2,
-              width: item.w,
-              height: item.h,
-              cornerRadius: 8,
-              fill: 'rgba(148,163,184,0.12)',
-              stroke: (hoverId===item.id || selectedIds.includes(item.id)) ? '#93c5fd' : '#334155',
-              strokeWidth: (hoverId===item.id || selectedIds.includes(item.id)) ? 2 : 1
-            }" />
-
-            <v-image
-              v-if="isImageEmoji(item.emoji)"
-              :config="{
-                x: -item.w/2,
-                y: -item.h/2,
-                width: item.w,
-                height: item.h,
-                image: getImage(item.emoji) || undefined,
-                listening: false
+                  const validCenter = findClosestCenterInsideRoom(
+                    wantedCenter,
+                    item.w,
+                    item.h,
+                    item.rotation
+                  );
+                  return validCenter;
+                }
               }"
-            />
-            <v-text
-              v-else
-              :config="{
-                x: -item.w/2,
-                y: -item.h/2,
-                width: item.w,
-                height: item.h,
-                align: 'center',
-                verticalAlign: 'middle',
-                text: item.emoji,
-                fontSize: Math.min(item.w, item.h) - PADDING
-              }"
-            />
+              @mouseenter="() => (hoverId = item.id)"
+              @mouseleave="() => (hoverId = hoverId === item.id ? null : hoverId)"
+              @click="(e) => onRectClick(item.id, e)"
+              @dragend="(e) => onDragEnd(item.id, e, item)"
+              @transform="(e) => onTransform(item.id, e)"
+              @transformend="(e) => onTransformEnd(item.id, e)"
+            >
+              <!-- Item Rectangle -->
+              <v-rect
+                :config="{
+                  x: -item.w / 2,
+                  y: -item.h / 2,
+                  width: item.w,
+                  height: item.h,
+                  cornerRadius: 8,
+                  fill: 'rgba(148,163,184,0.12)',
+                  stroke: hoverId === item.id || selectedIds.includes(item.id) ? '#93c5fd' : '#334155',
+                  strokeWidth: hoverId === item.id || selectedIds.includes(item.id) ? 2 : 1
+                }"
+              />
 
+              <!-- Delete Button -->
               <v-group
                 v-if="hoverId === item.id"
                 :config="{
-                  x: item.w/2 - DELETE_BTN_SIZE/2,
-                  y: -item.h/2 - DELETE_BTN_SIZE/2,
+                  x: item.w / 2 - DELETE_BTN_SIZE / 2,
+                  y: -item.h / 2 - DELETE_BTN_SIZE / 2,
                   listening: true
                 }"
-                @click="(e : any) => { e.cancelBubble = true; deleteItem(item.id); }"
-                @tap="(e: any) => { e.cancelBubble = true; deleteItem(item.id); }"
-                @mousedown="(e: any) => e.cancelBubble = true"
-                @touchstart="(e: any) => e.cancelBubble = true"
+                @click="(e) => { e.cancelBubble = true; deleteItem(item.id); }"
+                @tap="(e) => { e.cancelBubble = true; deleteItem(item.id); }"
+                @mousedown="(e) => (e.cancelBubble = true)"
+                @touchstart="(e) => (e.cancelBubble = true)"
               >
-                <v-circle :config="{
-                  x: 0,
-                  y: 0,
-                  radius: DELETE_BTN_SIZE/2,
-                  fill: '#ef4444',
-                  stroke: '#ffffff',
-                  strokeWidth: 2,
-                  shadowColor: '#000000',
-                  shadowBlur: 4,
-                  shadowOpacity: 0.3,
-                  listening: true
-                }" 
-                @mouseenter="(e: any) => { e.target.fill('#dc2626'); e.target.getLayer().batchDraw(); }"
-                @mouseleave="(e: any) => { e.target.fill('#ef4444'); e.target.getLayer().batchDraw(); }"
+                <v-circle
+                  :config="{
+                    x: 0,
+                    y: 0,
+                    radius: DELETE_BTN_SIZE / 2,
+                    fill: '#ef4444',
+                    stroke: '#ffffff',
+                    strokeWidth: 2,
+                    shadowColor: '#000000',
+                    shadowBlur: 4,
+                    shadowOpacity: 0.3,
+                    listening: true
+                  }"
+                  @mouseenter="(e) => { e.target.fill('#dc2626'); e.target.getLayer().batchDraw(); }"
+                  @mouseleave="(e) => { e.target.fill('#ef4444'); e.target.getLayer().batchDraw(); }"
                 />
-                
-                <v-text :config="{
-                  x: -DELETE_BTN_SIZE/2,
-                  y: -DELETE_BTN_SIZE/2,
-                  width: DELETE_BTN_SIZE,
-                  height: DELETE_BTN_SIZE,
-                  text: '✕',
-                  fontSize: 16,
-                  fontStyle: 'bold',
-                  fill: '#ffffff',
-                  align: 'center',
-                  verticalAlign: 'middle',
-                  listening: false
-                }" />
+                <v-text
+                  :config="{
+                    x: -DELETE_BTN_SIZE / 2,
+                    y: -DELETE_BTN_SIZE / 2,
+                    width: DELETE_BTN_SIZE,
+                    height: DELETE_BTN_SIZE,
+                    text: '✕',
+                    fontSize: 16,
+                    fontStyle: 'bold',
+                    fill: '#ffffff',
+                    align: 'center',
+                    verticalAlign: 'middle',
+                    listening: false
+                  }"
+                />
               </v-group>
             </v-group>
           </template>
 
-        <v-transformer
-          ref="transformerRef"
-          :config="{
-            rotateEnabled: true,
-            enabledAnchors: ['top-left','top-right','bottom-left','bottom-right'],
-            boundBoxFunc: (oldBox:any, newBox:any) => {
-              const rawWidth = Math.abs(newBox.width)
-              const rawHeight = Math.abs(newBox.height)
-              const side = Math.max(MIN, Math.max(rawWidth, rawHeight))
-              const centerX = newBox.x + (newBox.width / 2)
-              const centerY = newBox.y + (newBox.height / 2)
-              const topLeftX = centerX - side / 2
-              const topLeftY = centerY - side / 2
-              const rotation = typeof newBox.rotation === 'number' ? newBox.rotation : (oldBox.rotation || 0)
-              // Takistab, et kasutaja ei venitaks yksust ruumi piiridest valja
-              if (!isRectFullyInsideRoom(topLeftX, topLeftY, side, side, rotation)) {
-                return oldBox
+          <!-- Transformer -->
+          <v-transformer
+            ref="transformerRef"
+            :config="{
+              rotateEnabled: true,
+              enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+              boundBoxFunc: (oldBox, newBox) => {
+                const rawWidth = Math.abs(newBox.width);
+                const rawHeight = Math.abs(newBox.height);
+                const side = Math.max(MIN, Math.max(rawWidth, rawHeight));
+                const centerX = newBox.x + newBox.width / 2;
+                const centerY = newBox.y + newBox.height / 2;
+                const topLeftX = centerX - side / 2;
+                const topLeftY = centerY - side / 2;
+                const rotation =
+                  typeof newBox.rotation === 'number' ? newBox.rotation : oldBox.rotation || 0;
+                if (!isRectFullyInsideRoom(topLeftX, topLeftY, side, side, rotation)) {
+                  return oldBox;
+                }
+                const widthSign = newBox.width >= 0 ? 1 : -1;
+                const heightSign = newBox.height >= 0 ? 1 : -1;
+                return { ...newBox, width: widthSign * side, height: heightSign * side };
               }
-              const widthSign = newBox.width >= 0 ? 1 : -1
-              const heightSign = newBox.height >= 0 ? 1 : -1
-              return { ...newBox, width: widthSign * side, height: heightSign * side }
-            }
-          }"
-        />
+            }"
+          />
+        </v-layer>
+      </v-stage>
 
-      </v-layer>
-    </v-stage>
+      <!-- HTML Emoji Overlay (outside of v-stage) -->
+      <div
+        v-for="item in storage.items"
+        :key="'emoji-' + item.id"
+        class="emoji-overlay"
+        :style="{
+          left: item.x + 'px',
+          top: item.y + 'px',
+          width: item.w + 'px',
+          height: item.h + 'px',
+          transform: 'rotate(' + item.rotation + 'deg)',
+          fontSize: (item.w - PADDING) + 'px',
+          lineHeight: item.h + 'px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }"
+      >
+        <img v-if="isImageEmoji(item.emoji)" :src="item.emoji" :alt="item.type" />
+        <Icon v-else-if="isIconifyName(item.emoji)" :name="item.emoji" />
+        <span v-else>{{ item.emoji }}</span>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.canvas-wrap { 
-  display: flex; 
-  justify-content: center; 
+.canvas-wrap {
+  display: flex;
+  justify-content: center;
 }
 
 .canvas-container {
@@ -549,5 +567,6 @@ function onTransformEnd(id: number, e: any) {
   user-select: none;
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "NotoColorEmoji", "Segoe UI Symbol", sans-serif;
 }
-
 </style>
+
+

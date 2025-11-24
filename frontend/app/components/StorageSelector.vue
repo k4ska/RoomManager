@@ -1,5 +1,3 @@
-
-
 <template>
   <aside class="sidebar">
     <div class="sidebar-head">
@@ -7,28 +5,22 @@
       <button class="add-btn" type="button" @click="openModal = true">Lisa uus</button>
     </div>
     <div class="items">
-      
-
-  <div
-    v-for="item in allItems"
-    :key="item.key"
-    class="item"
-    draggable="true"
-    @dragstart="(e) => onDragStart(item, e)"
-    @click="quickAdd(item)"
-    :title="item.label"
-  >
-    <!-- ✅ Fallback logic -->
-    <Icon v-if="isIconifyName(item.emoji)" :name="item.emoji" class="emoji" />
-    <span v-else class="emoji" :class="{ image: isImageEmoji(item.emoji) }">
+      <div
+        v-for="item in allItems"
+        :key="item.key"
+        class="item"
+        draggable="true"
+        @dragstart="(e) => onDragStart(item, e)"
+        @click="quickAdd(item)"
+        :title="item.label"
+      >
+        <span class="emoji" :class="{ image: isImageEmoji(item.emoji) }">
           <img v-if="isImageEmoji(item.emoji)" :src="item.emoji" :alt="item.label" />
+          <Icon v-if="isIconifyName(item.emoji)" :name="item.emoji" />
           <span v-else>{{ item.emoji }}</span>
-
         </span>
-    <span class="label">{{ item.label }}</span>
-  </div>
-
-
+        <span class="label">{{ item.label }}</span>
+      </div>
     </div>
     <div class="help">Lohista lõuendile või klõpsa lisamiseks.</div>
   </aside>
@@ -74,16 +66,12 @@
   </UModal>
 </template>
 
+
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { StorageType } from '~/stores/storageStore'
 import { useStorageStore } from '~/stores/storageStore'
 import { useRoomShapeStore } from '~/stores/roomShape'
-import { ref, computed } from 'vue'
-
-// Custom item inputs
-const customName = ref('')
-const customEmoji = ref('')
 
 
 const isIconifyName = (val: string) => /^[-a-z0-9]+:[-a-z0-9]+$/i.test(val);
@@ -95,16 +83,45 @@ type SelectorItem = { key: string; type: StorageType; label: string; emoji: stri
 
 // Source list for available storage unit types
 
-const list = [
-  { type: 'box',       label: 'Kast',            emoji: 'twemoji:package' },
-  { type: 'cabinet',   label: 'Kapp',            emoji: 'twemoji:file-cabinet' }, 
-  { type: 'shelf',     label: 'Riiul',           emoji: 'twemoji:ladder' },       
-  { type: 'chair',     label: 'Tool',            emoji: 'twemoji:chair' },         
-  { type: 'drawer',    label: 'Sahtel',          emoji: 'twemoji:card-file-box' },
-  { type: 'locker',    label: 'Kapp (lukuga)',   emoji: 'twemoji:locked-with-key' }, 
-  { type: 'workbench', label: 'Töölaud',         emoji: 'twemoji:hammer-and-wrench' } 
-] as { type: StorageType, label: string, emoji: string }[]
+const baseItems: SelectorItem[] = [
+  {key: 'builtin-box',        type: 'box',       label: 'Kast',            emoji: 'twemoji:package' },
+  {key: 'builtin-cabinet',    type: 'cabinet',   label: 'Kapp',            emoji: 'twemoji:file-cabinet' }, 
+  {key: 'builtin-shelf',      type: 'shelf',     label: 'Riiul',           emoji: 'twemoji:ladder' },       
+  {key: 'builtin-chair',      type: 'chair',     label: 'Tool',            emoji: 'twemoji:chair' },         
+  {key: 'builtin-drawer',     type: 'drawer',    label: 'Sahtel',          emoji: 'twemoji:card-file-box' },
+  {key: 'builtin-locker',     type: 'locker',    label: 'Kapp (lukuga)',   emoji: 'twemoji:locked-with-key' }, 
+  {key: 'builtin-workbench',  type: 'workbench', label: 'Töölaud',         emoji: 'twemoji:hammer-and-wrench' } 
+] as const
 
+const customItems = ref<SelectorItem[]>([])
+const allItems = computed(() => [...baseItems, ...customItems.value])
+const openModal = ref(false)
+const newName = ref('')
+const newLogo = ref<string | null>(null)
+const logoName = ref('')
+const fileInput = ref<HTMLInputElement | null>(null)
+const nameError = ref(false)
+const logoError = ref(false)
+watch(newName, (v) => { if (v.trim()) nameError.value = false })
+watch(newLogo, (v) => { if (v) logoError.value = false })
+watch(openModal, (v) => { if (!v) resetForm() })
+
+function resetForm() {
+  newName.value = ''
+  newLogo.value = null
+  logoName.value = ''
+  nameError.value = false
+  logoError.value = false
+}
+
+function closeModal() {
+  openModal.value = false
+  resetForm()
+}
+
+function isImageEmoji(value: string) {
+  return value.startsWith('data:image') || value.startsWith('http')
+}
 
 // Starts dragging with a JSON payload
 function onDragStart(item: { type: StorageType, emoji: string }, e: DragEvent) {
@@ -194,23 +211,6 @@ function normalizeEmoji(input: string) {
   // Otherwise it’s probably a raw Unicode emoji – keep as text (non-<Icon>)
   return input;
 }
-
-async function addCustomItem() {
-  if (!customName.value || !customEmoji.value) return;
-
-  const emoji = normalizeEmoji(customEmoji.value);
-  const id = await store.addUnit('box', 40, 40, emoji);
-  const unit = store.items.find(i => i.id === id);
-  if (!unit) return;
-  unit.name = customName.value;
-
-  const pos = snapRectInsideRoom(unit.x, unit.y, unit.w, unit.h, unit.rotation);
-  await store.updatePos(id, pos.x, pos.y);
-
-  customName.value = '';
-  customEmoji.value = '';
-}
-
 
 
 

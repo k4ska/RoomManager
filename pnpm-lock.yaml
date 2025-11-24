@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      nuxt-emoji-picker:
-        specifier: 1.2.1
-        version: 1.2.1(magicast@0.5.1)(typescript@5.9.3)
       nuxt-icon:
         specifier: 1.0.0-beta.7
         version: 1.0.0-beta.7(magicast@0.5.1)(vite@7.2.4(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(yaml@2.8.1))(vue@3.5.24(typescript@5.9.3))
@@ -990,9 +987,6 @@ packages:
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
-
-  '@popperjs/core@2.11.8':
-    resolution: {integrity: sha512-P1st0aksCrn9sGZhp8GMYwBnQsbvAWsZAX44oXNNvLHGqAOcoVxmjZiohstwQ7SqKnbR47akdNi+uleWD8+g6A==}
 
   '@poppinss/colors@4.1.5':
     resolution: {integrity: sha512-FvdDqtcRCtz6hThExcFOgW0cWX+xwSMWcRuQe5ZEb2m7cVQOAVZOIMt+/v9RxGiD9/OY16qJBXK4CVKWAPalBw==}
@@ -2297,9 +2291,6 @@ packages:
     resolution: {integrity: sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA==}
     engines: {node: '>=0.10.0'}
 
-  idb@7.1.1:
-    resolution: {integrity: sha512-gchesWBzyvGHRO9W8tzUWFDycow5gwjvFKfyV9FF32Y7F50yZMp7mP+T2mJIWFx49zicqyC4uefHM17o6xKIVQ==}
-
   ieee754@1.2.1:
     resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
 
@@ -2758,9 +2749,6 @@ packages:
 
   nth-check@2.1.1:
     resolution: {integrity: sha512-lqjrjmaOoAnWfMmBPL+XNnynZh2+swxiX3WUE0s4yEHI6m+AwrK2UZOimIRl3X/4QctVqS8AiZjFqyOGrMXb/w==}
-
-  nuxt-emoji-picker@1.2.1:
-    resolution: {integrity: sha512-rXQS1DXNQXlIDCepIMA0BTTZ+XrKvcoeMopdnSHo1EE5kbfH6S8bSQQgzjfelIOuaDHp2BVkMBm0f5BzY+0z7Q==}
 
   nuxt-icon@1.0.0-beta.7:
     resolution: {integrity: sha512-HdEn1sZGmkIX44L5rZ8YUMdIdVCpeBXycO2DdrqZmFilixcHax0XYdehc1VD6Kl9Sxg8B7sKPMelmDXVTbDwIw==}
@@ -3788,10 +3776,6 @@ packages:
     resolution: {integrity: sha512-ARBedLm9YlbvQomnmq91Os7ck6efydTSpRP3nuOKCvgJOHNrhRoJDSKtee8kcL1Vf7nz6U+PMBL+hTvR3bTVQg==}
     peerDependencies:
       vue: ^3.5.0
-
-  vue3-emoji-picker@1.1.8:
-    resolution: {integrity: sha512-k9tVHeQEBVLzVCLYAkFaI1nib3FJFQwdPhWD5khJkhks3ktg3g12z5wPGOSDpIuSLNtelRGvq1qdmZuJu5khfA==}
-    engines: {node: '>=16.0.0'}
 
   vue@3.5.24:
     resolution: {integrity: sha512-uTHDOpVQTMjcGgrqFPSb8iO2m1DUvo+WbGqoXQz8Y1CeBYQ0FXf2z1gLRaBtHjlRz7zZUBHxjVB5VTLzYkvftg==}
@@ -5071,8 +5055,6 @@ snapshots:
     optional: true
 
   '@polka/url@1.0.0-next.29': {}
-
-  '@popperjs/core@2.11.8': {}
 
   '@poppinss/colors@4.1.5':
     dependencies:
@@ -6366,8 +6348,6 @@ snapshots:
     dependencies:
       safer-buffer: 2.1.2
 
-  idb@7.1.1: {}
-
   ieee754@1.2.1: {}
 
   ignore@7.0.5: {}
@@ -6859,14 +6839,6 @@ snapshots:
   nth-check@2.1.1:
     dependencies:
       boolbase: 1.0.0
-
-  nuxt-emoji-picker@1.2.1(magicast@0.5.1)(typescript@5.9.3):
-    dependencies:
-      '@nuxt/kit': 4.2.1(magicast@0.5.1)
-      vue3-emoji-picker: 1.1.8(typescript@5.9.3)
-    transitivePeerDependencies:
-      - magicast
-      - typescript
 
   nuxt-icon@1.0.0-beta.7(magicast@0.5.1)(vite@7.2.4(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(yaml@2.8.1))(vue@3.5.24(typescript@5.9.3)):
     dependencies:
@@ -8032,14 +8004,6 @@ snapshots:
     dependencies:
       '@vue/devtools-api': 6.6.4
       vue: 3.5.24(typescript@5.9.3)
-
-  vue3-emoji-picker@1.1.8(typescript@5.9.3):
-    dependencies:
-      '@popperjs/core': 2.11.8
-      idb: 7.1.1
-      vue: 3.5.24(typescript@5.9.3)
-    transitivePeerDependencies:
-      - typescript
 
   vue@3.5.24(typescript@5.9.3):
     dependencies:

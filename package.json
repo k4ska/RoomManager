@@ -1,6 +1,5 @@
 {
 	"dependencies": {
-		"nuxt-emoji-picker": "1.2.1",
 		"nuxt-icon": "1.0.0-beta.7"
 	},
 	"devDependencies": {
