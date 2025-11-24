@@ -15,6 +15,7 @@ const selectedIds = ref<number[]>([])
 const hoverId = ref<number | null>(null)
 
 const isIconifyName = (val: string) => /^[-a-z0-9]+:[-a-z0-9]+$/i.test(val)
+const imageCache = new Map<string, HTMLImageElement | null>()
 
 const MIN = 30 // minimum side length in pixels
 const PADDING = 4 //emoji ümber ruum
@@ -24,6 +25,21 @@ const DELETE_BTN_SIZE = 24 // size of delete button
 // Tagastab väärtuse piiratud vahemikus [min, max]
 function clampValue(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v))
+}
+
+function isImageEmoji(value: string | undefined | null) {
+  return !!value && (value.startsWith('data:image') || value.startsWith('http'))
+}
+
+function getImage(value: string | undefined | null) {
+  if (!isImageEmoji(value)) return null
+  if (typeof Image === 'undefined') return null
+  if (!imageCache.has(value!)) {
+    const img = new Image()
+    img.src = value!
+    imageCache.set(value!, img)
+  }
+  return imageCache.get(value!) || null
 }
 
 // Tagastab hulknurga keskpunkti
@@ -181,6 +197,7 @@ onMounted(() => {
     e.preventDefault()
     let type = 'box' as StorageType
     let emoji: string | undefined
+    let name: string | undefined
 
     const json = e.dataTransfer?.getData('application/json')
     if (json) {
@@ -188,6 +205,7 @@ onMounted(() => {
         const data = JSON.parse(json)
         if (data?.type) type = data.type as StorageType
         if (typeof data?.emoji === 'string') emoji = data.emoji
+        if (typeof data?.name === 'string') name = data.name
       } catch {}
     } else {
       type = (e.dataTransfer?.getData('text/plain') || 'box') as StorageType
@@ -197,7 +215,8 @@ onMounted(() => {
     const x = clampValue(e.clientX - rect.left, 0, room.stage.width)
     const y = clampValue(e.clientY - rect.top, 0, room.stage.height)
 
-    const id = await storage.addUnit(type, x, y, emoji)
+    // Place by top-left, then snap fully inside the room
+    const id = await storage.addUnit(type, x, y, emoji, name)
     const item = storage.items.find(i => i.id === id)!
     const pos = snapRectInsideRoom(item.x, item.y, item.w, item.h, item.rotation)
     await storage.updatePos(id, pos.x, pos.y)
@@ -304,6 +323,25 @@ function onDragEnd(id: number, e: {target:any}, item: any) {
   storage.updatePos(id, pos.x, pos.y)
 }
 
+// Jalgib reaalajas, et suurendatav yksus ei lahkuks ruumist
+function onTransform(id: number, e: any) {
+  const node = e.target
+  const item = storage.items.find(i => i.id === id)
+  if (!item) return
+  const scale = node.scaleX() || 1
+  const side = Math.max(MIN, item.w * scale)
+  const rot = ((node.rotation() % 360) + 360) % 360
+  const x = node.x() - side / 2
+  const y = node.y() - side / 2
+  if (!isRectFullyInsideRoom(x, y, side, side, rot)) {
+    const prev = (node as any)._rmLastScale ?? 1
+    node.scaleX(prev)
+    node.scaleY(prev)
+    return
+  }
+  (node as any)._rmLastScale = scale
+}
+
 // Uuendab suuruse ja pöördenurga peale transformatsiooni lõppu
 function onTransformEnd(id: number, e: any) {
   const node = e.target
@@ -312,10 +350,13 @@ function onTransformEnd(id: number, e: any) {
   const side = Math.max(MIN, item.w * scale)
   node.scaleX(1)
   node.scaleY(1)
+  ;(node as any)._rmLastScale = 1
   const rot = ((node.rotation() % 360) + 360) % 360
   const x = node.x() - side / 2
   const y = node.y() - side / 2
   const pos = snapRectInsideRoom(x, y, side, side, rot)
+  node.x(pos.x + side / 2)
+  node.y(pos.y + side / 2)
   storage.updateUnit(id, { x: pos.x, y: pos.y, w: side, h: side, rotation: rot })
 }
 </script>
@@ -365,27 +406,53 @@ function onTransformEnd(id: number, e: any) {
                     return wantedCenter
                   }
 
-                  const validCenter = findClosestCenterInsideRoom(wantedCenter, item.w, item.h, item.rotation)
-                  return validCenter
-                }
-              }"
-              @mouseenter="() => hoverId = item.id"
-              @mouseleave="() => hoverId = (hoverId===item.id?null:hoverId)"
-              @click="(e: any) => onRectClick(item.id, e)"
-              @dragend="(e: any) => onDragEnd(item.id, e, item)"
-              @transformend="(e: any) => onTransformEnd(item.id, e)"
-            >
-              
-              <v-rect :config="{
+                const validCenter = findClosestCenterInsideRoom(wantedCenter, item.w, item.h, item.rotation)
+                return validCenter
+              }
+            }"
+            @mouseenter="() => hoverId = item.id"
+            @mouseleave="() => hoverId = (hoverId===item.id?null:hoverId)"
+            @click="(e: any) => onRectClick(item.id, e)"
+            @dragend="(e: any) => onDragEnd(item.id, e, item)"
+            @transform="(e: any) => onTransform(item.id, e)"
+            @transformend="(e: any) => onTransformEnd(item.id, e)"
+          >
+            
+            <v-rect :config="{
+              x: -item.w/2,
+              y: -item.h/2,
+              width: item.w,
+              height: item.h,
+              cornerRadius: 8,
+              fill: 'rgba(148,163,184,0.12)',
+              stroke: (hoverId===item.id || selectedIds.includes(item.id)) ? '#93c5fd' : '#334155',
+              strokeWidth: (hoverId===item.id || selectedIds.includes(item.id)) ? 2 : 1
+            }" />
+
+            <v-image
+              v-if="isImageEmoji(item.emoji)"
+              :config="{
                 x: -item.w/2,
                 y: -item.h/2,
                 width: item.w,
                 height: item.h,
-                cornerRadius: 8,
-                fill: 'rgba(148,163,184,0.12)',
-                stroke: (hoverId===item.id || selectedIds.includes(item.id)) ? '#93c5fd' : '#334155',
-                strokeWidth: (hoverId===item.id || selectedIds.includes(item.id)) ? 2 : 1
-              }" />
+                image: getImage(item.emoji) || undefined,
+                listening: false
+              }"
+            />
+            <v-text
+              v-else
+              :config="{
+                x: -item.w/2,
+                y: -item.h/2,
+                width: item.w,
+                height: item.h,
+                align: 'center',
+                verticalAlign: 'middle',
+                text: item.emoji,
+                fontSize: Math.min(item.w, item.h) - PADDING
+              }"
+            />
 
               <v-group
                 v-if="hoverId === item.id"
@@ -432,38 +499,33 @@ function onTransformEnd(id: number, e: any) {
             </v-group>
           </template>
 
-          <v-transformer
-            ref="transformerRef"
-            :config="{
-              rotateEnabled: true,
-              enabledAnchors: ['top-left','top-right','bottom-left','bottom-right'],
-              boundBoxFunc: (oldBox:any, newBox:any) => {
-                const side = Math.max(MIN, Math.max(newBox.width, newBox.height))
-                return { ...newBox, width: side, height: side }
+        <v-transformer
+          ref="transformerRef"
+          :config="{
+            rotateEnabled: true,
+            enabledAnchors: ['top-left','top-right','bottom-left','bottom-right'],
+            boundBoxFunc: (oldBox:any, newBox:any) => {
+              const rawWidth = Math.abs(newBox.width)
+              const rawHeight = Math.abs(newBox.height)
+              const side = Math.max(MIN, Math.max(rawWidth, rawHeight))
+              const centerX = newBox.x + (newBox.width / 2)
+              const centerY = newBox.y + (newBox.height / 2)
+              const topLeftX = centerX - side / 2
+              const topLeftY = centerY - side / 2
+              const rotation = typeof newBox.rotation === 'number' ? newBox.rotation : (oldBox.rotation || 0)
+              // Takistab, et kasutaja ei venitaks yksust ruumi piiridest valja
+              if (!isRectFullyInsideRoom(topLeftX, topLeftY, side, side, rotation)) {
+                return oldBox
               }
-            }"
-          />
-        </v-layer>
-      </v-stage>
+              const widthSign = newBox.width >= 0 ? 1 : -1
+              const heightSign = newBox.height >= 0 ? 1 : -1
+              return { ...newBox, width: widthSign * side, height: heightSign * side }
+            }
+          }"
+        />
 
-           <!-- HTML Emoji Overlay -->
-      <div 
-        v-for="item in storage.items" 
-        :key="'emoji-' + item.id"
-        class="emoji-overlay"
-        :style="{
-          left: item.x + 'px',
-          top: item.y + 'px',
-          width: item.w + 'px',
-          height: item.h + 'px',
-          transform: 'rotate(' + item.rotation + 'deg)',
-          fontSize: (item.w - PADDING) + 'px'
-        }"
-      >
-        <Icon v-if="isIconifyName(item.emoji)" :name="item.emoji" :style="{ width: (item.w - PADDING) + 'px', height: (item.h - PADDING) + 'px' }" />
-        <span v-else>{{ item.emoji }}</span>
-      </div>
-    </div>
+      </v-layer>
+    </v-stage>
   </div>
 </template>
 

@@ -10,7 +10,7 @@
         <ClientOnly>
           <RoomCanvas />
           <template #fallback>
-            <div class="p-12 text-center text-gray-500">Lõuend laadib…</div>
+            <div class="p-12 text-center text-gray-500">Lõuend laeb...</div>
           </template>
         </ClientOnly>
       </UCard>

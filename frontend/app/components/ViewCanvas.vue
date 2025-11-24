@@ -1,17 +1,34 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoomShapeStore } from '~/stores/roomShape'
 import { useStorageStore } from '~/stores/storageStore'
 
 const room = useRoomShapeStore()
 const storage = useStorageStore()
-const props = defineProps<{ selectedId?: number | null }>()
+const props = defineProps<{ selectedId?: number | null; highlightIds?: number[] | null }>()
 const emit = defineEmits<{ (e: 'select', id: number | null): void }>()
 
 const hoverId = ref<number | null>(null)
 const EMOJI_SIZE = 20
 const PADDING = 4
 const isIconifyName = (val: string) => /^[-a-z0-9]+:[-a-z0-9]+$/i.test(val);
+const imageCache = new Map<string, HTMLImageElement | null>()
+const highlightSet = computed(() => new Set(props.highlightIds ?? []))
+
+function isImageEmoji(value: string | null | undefined) {
+  return !!value && (value.startsWith('data:image') || value.startsWith('http'))
+}
+
+function getImage(value: string | null | undefined) {
+  if (!isImageEmoji(value)) return null
+  if (typeof Image === 'undefined') return null
+  if (!imageCache.has(value!)) {
+    const img = new Image()
+    img.src = value!
+    imageCache.set(value!, img)
+  }
+  return imageCache.get(value!) || null
+}
 
 // Builds a short multi-line summary of unit contents
 function linesFor(item: { contents?: { name: string; quantity: number }[] }) {
@@ -21,6 +38,10 @@ function linesFor(item: { contents?: { name: string; quantity: number }[] }) {
   const shown = items.slice(0, max).map(x => `${x.name} × ${x.quantity}`)
   const extra = items.length - shown.length
   return extra > 0 ? shown.concat([`+${extra} veel`]).join('\n') : shown.join('\n')
+}
+
+function isHighlighted(id: number) {
+  return highlightSet.value.has(id)
 }
 </script>
 
