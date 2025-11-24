@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoomShapeStore } from '~/stores/roomShape'
 import { useStorageStore } from '~/stores/storageStore'
 
 const room = useRoomShapeStore()
 const storage = useStorageStore()
-const props = defineProps<{ selectedId?: number | null }>()
+const props = defineProps<{ selectedId?: number | null; highlightIds?: number[] | null }>()
 const emit = defineEmits<{ (e: 'select', id: number | null): void }>()
 
 const hoverId = ref<number | null>(null)
 const EMOJI_SIZE = 20
 const imageCache = new Map<string, HTMLImageElement | null>()
+const highlightSet = computed(() => new Set(props.highlightIds ?? []))
 
 function isImageEmoji(value: string | null | undefined) {
   return !!value && (value.startsWith('data:image') || value.startsWith('http'))
@@ -35,6 +36,10 @@ function linesFor(item: { contents?: { name: string; quantity: number }[] }) {
   const shown = items.slice(0, max).map(x => `${x.name} × ${x.quantity}`)
   const extra = items.length - shown.length
   return extra > 0 ? shown.concat([`+${extra} veel`]).join('\n') : shown.join('\n')
+}
+
+function isHighlighted(id: number) {
+  return highlightSet.value.has(id)
 }
 </script>
 
@@ -78,8 +83,11 @@ function linesFor(item: { contents?: { name: string; quantity: number }[] }) {
               width: item.w,
               height: item.h,
               cornerRadius: 8,
-              stroke: hoverId===item.id ? '#93c5fd' : undefined,
-              strokeWidth: hoverId===item.id ? 2 : 0
+              stroke: isHighlighted(item.id) ? '#facc15' : (hoverId===item.id ? '#93c5fd' : undefined),
+              strokeWidth: isHighlighted(item.id) ? 3 : (hoverId===item.id ? 2 : 0),
+              shadowColor: isHighlighted(item.id) ? '#facc15' : undefined,
+              shadowBlur: isHighlighted(item.id) ? 18 : 0,
+              shadowOpacity: isHighlighted(item.id) ? 0.9 : 0
             }" />
             <v-image
               v-if="isImageEmoji(item.emoji)"
