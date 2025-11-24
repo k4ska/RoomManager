@@ -1,58 +1,61 @@
+
+
 <template>
   <aside class="sidebar">
     <h3>Hoiustamise üksused</h3>
     <div class="items">
-      <div
-        v-for="item in list"
-        :key="item.type"
-        class="item"
-        draggable="true"
-        @dragstart="(e) => onDragStart(item, e)"
-        @click="quickAdd(item)"
-        :title="item.label"
-      >
-        <img 
-          :src="getEmojiImageUrl(item.emoji)" 
-          class="emoji"
-          alt=""
-        />
-        <span class="label">{{ item.label }}</span>
-      </div>
+      
+
+  <div
+    v-for="item in list"
+    :key="item.type"
+    class="item"
+    draggable="true"
+    @dragstart="(e) => onDragStart(item, e)"
+    @click="quickAdd(item)"
+    :title="item.label"
+  >
+    <!-- ✅ Fallback logic -->
+    <Icon v-if="isIconifyName(item.emoji)" :name="item.emoji" class="emoji" />
+    <span v-else class="emoji">{{ item.emoji }}</span>
+
+    <span class="label">{{ item.label }}</span>
+  </div>
+
+
     </div>
-    <div class="help">Lohista lõuendile või klõpsa lisamiseks.</div>
-  </aside>
-  
+  </aside>     
 </template>
 
 <script setup lang="ts">
 import type { StorageType } from '~/stores/storageStore'
 import { useStorageStore } from '~/stores/storageStore'
 import { useRoomShapeStore } from '~/stores/roomShape'
+import { ref, computed } from 'vue'
+
+// Custom item inputs
+const customName = ref('')
+const customEmoji = ref('')
+
+
+const isIconifyName = (val: string) => /^[-a-z0-9]+:[-a-z0-9]+$/i.test(val);
 
 const store = useStorageStore()
 const room = useRoomShapeStore()
 
 // Source list for available storage unit types
+
 const list = [
-  { type: 'box',       label: 'Kast',            emoji: '📦️' },
-  { type: 'cabinet',   label: 'Kapp',            emoji: '🗄️' },
-  { type: 'shelf',     label: 'Riiul',           emoji: '🪜' },
-  { type: 'table',     label: 'Laud',            emoji: '⛩' },
-  { type: 'drawer',    label: 'Sahtel',          emoji: '🗃️' },
-  { type: 'locker',    label: 'Kapp (lukuga)',   emoji: '🔒' },
-  { type: 'workbench', label: 'Töölaud',         emoji: '🛠️' }
+  { type: 'box',       label: 'Kast',            emoji: 'twemoji:package' },
+  { type: 'cabinet',   label: 'Kapp',            emoji: 'twemoji:file-cabinet' }, 
+  { type: 'shelf',     label: 'Riiul',           emoji: 'twemoji:ladder' },       
+  { type: 'chair',     label: 'Tool',            emoji: 'twemoji:chair' },         
+  { type: 'drawer',    label: 'Sahtel',          emoji: 'twemoji:card-file-box' },
+  { type: 'locker',    label: 'Kapp (lukuga)',   emoji: 'twemoji:locked-with-key' }, 
+  { type: 'workbench', label: 'Töölaud',         emoji: 'twemoji:hammer-and-wrench' } 
 ] as { type: StorageType, label: string, emoji: string }[]
 
 
-// Convert emoji to Twemoji CDN URL
-function getEmojiImageUrl(emoji: string): string {
-  const codePoints = [...emoji]
-    .map(char => char.codePointAt(0))
-    .filter(cp => cp !== undefined && cp !== 0xfe0f)
-    .map(cp => cp!.toString(16))
-    .join('-')
-  return `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/${codePoints}.svg`
-}
 // Starts dragging with a JSON payload
 function onDragStart(item: { type: StorageType, emoji: string }, e: DragEvent) {
   const payload = JSON.stringify({ type: item.type, emoji: item.emoji })
@@ -131,6 +134,35 @@ async function quickAdd(item: { type: StorageType, emoji: string }) {
     (window as any).__rm_redrawCanvas?.()
   }
 }
+
+// Normalize what gets stored when adding a custom item:
+function normalizeEmoji(input: string) {
+  // If user typed 'package' etc., default to Twemoji
+  if (/^[a-z0-9-]+$/i.test(input)) return `twemoji:${input}`;
+  // If they gave a full 'collection:name', keep it
+  if (isIconifyName(input)) return input;
+  // Otherwise it’s probably a raw Unicode emoji – keep as text (non-<Icon>)
+  return input;
+}
+
+async function addCustomItem() {
+  if (!customName.value || !customEmoji.value) return;
+
+  const emoji = normalizeEmoji(customEmoji.value);
+  const id = await store.addUnit('box', 40, 40, emoji);
+  const unit = store.items.find(i => i.id === id);
+  if (!unit) return;
+  unit.name = customName.value;
+
+  const pos = snapRectInsideRoom(unit.x, unit.y, unit.w, unit.h, unit.rotation);
+  await store.updatePos(id, pos.x, pos.y);
+
+  customName.value = '';
+  customEmoji.value = '';
+}
+
+
+
 </script>
 
 <style scoped>
@@ -170,6 +202,82 @@ h3 {
 }
 .label { 
   line-height: 1.2; 
+}
+h4 {
+  margin: 0 0 8px 0;
+  font-size: 0.95rem;
+  color: #9ca3af;
+}
+
+.custom-creator {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #334155;
+}
+
+.input-group {
+  margin-bottom: 10px;
+}
+
+.input-group label {
+  display: block;
+  font-size: 0.85rem;
+  color: #9ca3af;
+  margin-bottom: 4px;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 8px 10px;
+  background: rgba(148,163,184,0.12);
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: #e5e7eb;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+}
+
+.input-group input:focus {
+  outline: none;
+  border-color: #93c5fd;
+}
+
+.emoji-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.emoji-input {
+  flex: 1;
+  text-align: center;
+  font-size: 1.2rem !important;
+}
+
+.emoji-preview {
+  width: 2rem;
+  height: 2rem;
+}
+
+.add-btn {
+  width: 100%;
+  padding: 10px;
+  background: var(--accent, #10b981);
+  color: #062217;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.add-btn:hover:not(:disabled) {
+  background: var(--accent-hover, #059669);
+}
+
+.add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .help { 
   color: #9ca3af; 

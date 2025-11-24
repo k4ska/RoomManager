@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 
-export type StorageType = 'box' | 'cabinet' | 'shelf' | 'table' | 'drawer' | 'locker' | 'workbench'
+export type StorageType = 'box' | 'cabinet' | 'shelf' | 'chair' | 'drawer' | 'locker' | 'workbench'
 
 export interface StoredObject { name: string; quantity: number }
 
@@ -27,22 +27,22 @@ const LABEL: Record<StorageType, string> = {
   box: 'Kast',
   cabinet: 'Kapp',
   shelf: 'Riiul',
-  table: 'Laud',
+  chair: 'Tool',
   drawer: 'Sahtel',
   locker: 'Kapp (lukuga)',
   workbench: 'Töölaud'
 }
 
-// Emoji mapping per spec
 const META: Record<StorageType, { w: number; h: number; emoji: string }> = {
-  box: { w: UNIT_SIZE, h: UNIT_SIZE, emoji: '📦️' },
-  cabinet: { w: UNIT_SIZE, h: UNIT_SIZE, emoji: '🗄️' },
-  shelf: { w: UNIT_SIZE, h: UNIT_SIZE, emoji: '🪟' },
-  table: { w: UNIT_SIZE, h: UNIT_SIZE, emoji: '🪑' },
-  drawer: { w: UNIT_SIZE, h: UNIT_SIZE, emoji: '🧰' },
-  locker: { w: UNIT_SIZE, h: UNIT_SIZE, emoji: '🔒' },
-  workbench: { w: UNIT_SIZE, h: UNIT_SIZE, emoji: '🛠️' }
+  box:      { w: UNIT_SIZE, h: UNIT_SIZE, emoji: 'twemoji:package' },
+  cabinet:  { w: UNIT_SIZE, h: UNIT_SIZE, emoji: 'twemoji:file_cabinet' },
+  shelf:    { w: UNIT_SIZE, h: UNIT_SIZE, emoji: 'twemoji:window' },
+  chair:    { w: UNIT_SIZE, h: UNIT_SIZE, emoji: 'twemoji:chair' },
+  drawer:   { w: UNIT_SIZE, h: UNIT_SIZE, emoji: 'twemoji:toolbox' },
+  locker:   { w: UNIT_SIZE, h: UNIT_SIZE, emoji: 'twemoji:locked' },
+  workbench:{ w: UNIT_SIZE, h: UNIT_SIZE, emoji: 'twemoji:hammer_and_wrench' }
 }
+
 
 export const useStorageStore = defineStore('storage', () => {
   const items = ref<StorageUnit[]>([])

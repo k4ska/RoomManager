@@ -1,6 +1,6 @@
 export default defineNuxtConfig({
   devtools: { enabled: true },
-  modules: ['@nuxt/ui', '@pinia/nuxt'],
+  modules: ['@nuxt/ui', '@pinia/nuxt','nuxt-emoji-picker','nuxt-icon'],
   css: ['~/assets/css/main.css'],
   nitro: { compatibilityDate: '2025-10-29' },
 

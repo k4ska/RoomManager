@@ -11,16 +11,8 @@ const emit = defineEmits<{ (e: 'select', id: number | null): void }>()
 const hoverId = ref<number | null>(null)
 const EMOJI_SIZE = 20
 const PADDING = 4
+const isIconifyName = (val: string) => /^[-a-z0-9]+:[-a-z0-9]+$/i.test(val);
 
-// Convert emoji to Twemoji CDN URL
-function getEmojiImageUrl(emoji: string): string {
-  const codePoints = [...emoji]
-    .map(char => char.codePointAt(0))
-    .filter(cp => cp !== undefined && cp !== 0xfe0f)
-    .map(cp => cp!.toString(16))
-    .join('-')
-  return `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/${codePoints}.svg`
-}
 // Builds a short multi-line summary of unit contents
 function linesFor(item: { contents?: { name: string; quantity: number }[] }) {
   const items = item.contents ?? []
@@ -103,8 +95,7 @@ function linesFor(item: { contents?: { name: string; quantity: number }[] }) {
         </v-layer>
       </v-stage>
 
-      <!-- HTML Emoji Overlay -->
-      <div 
+            <div 
         v-for="item in storage.items" 
         :key="'emoji-' + item.id"
         class="emoji-overlay"
@@ -113,18 +104,19 @@ function linesFor(item: { contents?: { name: string; quantity: number }[] }) {
           top: item.y + 'px',
           width: item.w + 'px',
           height: item.h + 'px',
-          transform: 'rotate(' + item.rotation + 'deg)'
+          transform: 'rotate(' + item.rotation + 'deg)',
+          fontSize: (item.w - PADDING) + 'px',
+          lineHeight: (item.h - PADDING) + 'px'
         }"
-      >
-        <img 
-          :src="getEmojiImageUrl(item.emoji)" 
-          :style="{ width: (item.w - PADDING) + 'px', height: (item.h - PADDING) + 'px' }"
-          alt=""
-        />
+
+ >
+        <Icon v-if="isIconifyName(item.emoji)" :name="item.emoji" />
+        <span v-else>{{ item.emoji }}</span>
       </div>
     </div>
   </div>
 </template>
+
 
 <style scoped>
 .canvas-wrap { 
@@ -143,5 +135,8 @@ function linesFor(item: { contents?: { name: string; quantity: number }[] }) {
   justify-content: center;
   pointer-events: none;
   z-index: 10;
+  user-select: none;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "NotoColorEmoji", "Segoe UI Symbol", sans-serif;
 }
+
 </style>
