@@ -261,6 +261,50 @@
 			"response": []
 		},
 		{
+			"name": "test_login_wrong_password",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status is 401\", () => pm.response.to.have.status(401));",
+							"const json = pm.response.json();",
+							"pm.test(\"ok false\", () => pm.expect(json.ok).to.eql(false));",
+							"pm.test(\"has error\", () => pm.expect(json).to.have.property(\"error\"));"
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n\"email\": \"test@register.com\",\r\n\"password\": \"valeparool\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{url}}/api/auth/login",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"auth",
+						"login"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "test_me",
 			"event": [
 				{
