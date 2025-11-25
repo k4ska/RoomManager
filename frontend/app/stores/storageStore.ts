@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 
 export type StorageType = 'box' | 'cabinet' | 'shelf' | 'chair' | 'drawer' | 'locker' | 'workbench'
-export type StorageKind = StorageType | 'custom' | string
 
 export interface StoredObject { name: string; quantity: number }
 

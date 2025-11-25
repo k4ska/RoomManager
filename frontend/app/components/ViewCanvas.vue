@@ -129,10 +129,18 @@ function isHighlighted(id: number) {
           fontSize: (item.w - PADDING) + 'px',
           lineHeight: (item.h - PADDING) + 'px'
         }"
-
- >
-        <Icon v-if="isIconifyName(item.emoji)" :name="item.emoji" />
-        <span v-else>{{ item.emoji }}</span>
+>
+  <img 
+    v-if="item.emoji && (item.emoji.startsWith('data:') || item.emoji.startsWith('http'))" 
+    :src="item.emoji" 
+    class="emoji-image"
+    :style="{
+      maxWidth: (item.w - PADDING) + 'px',
+      maxHeight: (item.h - PADDING) + 'px'
+    }"
+  />
+        <Icon v-else-if="isIconifyName(item.emoji)" :name="item.emoji" />
+  <span v-else>{{ item.emoji }}</span>
       </div>
     </div>
   </div>
@@ -159,5 +167,8 @@ function isHighlighted(id: number) {
   user-select: none;
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "NotoColorEmoji", "Segoe UI Symbol", sans-serif;
 }
-
+.emoji-image {
+  object-fit: contain;
+  display: block;
+}
 </style>
