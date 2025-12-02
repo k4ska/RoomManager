@@ -110,7 +110,8 @@ function isHighlighted(id: number) {
                 align: 'center',
                 verticalAlign: 'middle',
                 text: item.emoji,
-                fontSize: Math.max(EMOJI_SIZE, Math.min(item.w, item.h) * 0.5)
+                fontSize: Math.max(EMOJI_SIZE, Math.min(item.w, item.h) * 0.5),
+                fill: '#ffffff'
               }"
             />
 
