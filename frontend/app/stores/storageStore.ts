@@ -54,7 +54,7 @@ export const useStorageStore = defineStore('storage', () => {
     // Nuxt 4 avalik runtime on import.meta.env
     // SSR/Node kontekstis varuvariandina process.env
     // @ts-ignore
-    return (import.meta as any).env?.NUXT_PUBLIC_API_BASE || (process.env as any)?.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
+    return (import.meta as any).env?.NUXT_PUBLIC_API_BASE || (process.env as any)?.NUXT_PUBLIC_API_BASE || ''
   }
 
   // Teisendab backendist tulnud üksuse ja esemed kohalikuks StorageUnit-iks

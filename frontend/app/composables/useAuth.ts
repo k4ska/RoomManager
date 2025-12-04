@@ -15,7 +15,11 @@ export function useAuthApi() {
   }
 
   // Server (SSR) eelistab sisemist base'i; klient kasutab avalikku base'i
-  const base = isServer ? (internalApiBase || publicApiBase || 'http://backend:4000') : (publicApiBase || 'http://localhost:4000')
+  // Server (SSR) should prefer internal API base (container-to-container).
+  // Client (browser) should use publicApiBase when set, otherwise use relative paths (empty string)
+  const base = isServer
+    ? (internalApiBase || publicApiBase || 'http://back-end:8080')
+    : (publicApiBase || '')
 
   const userState = useState<any>('user', () => null)
 

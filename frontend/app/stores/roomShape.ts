@@ -172,7 +172,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     // Laeb salvestatud toakuju backendist (kui on)
     async loadFromServer() {
       try {
-        const base = (import.meta as any).env?.NUXT_PUBLIC_API_BASE || (process.env as any)?.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
+        const base = (import.meta as any).env?.NUXT_PUBLIC_API_BASE || (process.env as any)?.NUXT_PUBLIC_API_BASE || ''
         const res = await fetch(`${base}/api/room-shape`, { credentials: 'include' })
         const data = await res.json()
         if (data?.ok && Array.isArray(data.shape)) {
@@ -183,7 +183,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     // Salvestab praeguse toakuju backendi
     async saveToServer() {
       try {
-        const base = (import.meta as any).env?.NUXT_PUBLIC_API_BASE || (process.env as any)?.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
+        const base = (import.meta as any).env?.NUXT_PUBLIC_API_BASE || (process.env as any)?.NUXT_PUBLIC_API_BASE || ''
         normalizeCurrent()
         await fetch(`${base}/api/room-shape`, {
           method: 'PATCH',
