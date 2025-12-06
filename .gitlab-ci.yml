@@ -46,7 +46,7 @@ build:front-end:
     - main
     - oskar
   script:
-    - docker build -t ${DOCKER_REGISTRY}/front:${CI_COMMIT_SHA} --build-arg REGISTRY=${DOCKER_PUBLIC_REGISTRY} ./frontend/
+    - docker build -t ${DOCKER_REGISTRY}/front:${CI_COMMIT_SHA} --build-arg REGISTRY=${DOCKER_PUBLIC_REGISTRY} --build-arg NUXT_PUBLIC_API_BASE=${NUXT_PUBLIC_API_BASE} ./frontend/
     - docker push ${DOCKER_REGISTRY}/front:${CI_COMMIT_SHA}
   stage: build
 
