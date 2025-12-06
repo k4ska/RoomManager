@@ -9,6 +9,7 @@ variables:
   DOCKER_HOST: tcp://docker:2375
   # muuda enda domeeniks või virtuaalmasina IP-ks
   DOMAIN: roommanager.itb2203.tautar.ee
+  NUXT_PUBLIC_API_BASE: "https://api.roommanager.itb2203.tautar.ee"
 
 stages:
   - build
