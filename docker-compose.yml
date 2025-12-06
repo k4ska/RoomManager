@@ -47,6 +47,7 @@ services:
       # JWT HS256 requires >= 256-bit (32-byte) key
       JWT_SECRET: 4c3f3bd13f6e4a6aa3f5c16f2c0d7cc1b2a1d9f84f0a3e5c7b9d2f1a6c4e3b1a
       SESSION_COOKIE_NAME: rm_session
+      SESSION_COOKIE_DOMAIN: .roommanager.itb2203.tautar.ee
       DATABASE_URL: postgres://postgres:postgres@db:5432/room_manager
       CORS_ORIGIN: http://localhost:3000,http://127.0.0.1:3000
     depends_on:
