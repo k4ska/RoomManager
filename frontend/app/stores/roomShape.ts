@@ -2,6 +2,10 @@ import { defineStore } from 'pinia'
 
 export type ShapeType = 'rectangle' | 'square' | 'triangle' | 'polygon'
 
+const runtime = (useRuntimeConfig?.() as any)
+  const publicCfg = runtime.public
+  const publicApiBase = publicCfg.apiBase
+
 interface Point { x: number; y: number }
 
 export const useRoomShapeStore = defineStore('roomShape', () => {
@@ -172,8 +176,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     // Laeb salvestatud toakuju backendist (kui on)
     async loadFromServer() {
       try {
-        const base = (import.meta as any).env?.NUXT_PUBLIC_API_BASE || (process.env as any)?.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
-        const res = await fetch(`${base}/api/room-shape`, { credentials: 'include' })
+        const res = await fetch(`${publicApiBase}/api/room-shape`, { credentials: 'include' })
         const data = await res.json()
         if (data?.ok && Array.isArray(data.shape)) {
           points.value = normalizeToStage(data.shape)
@@ -183,9 +186,8 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     // Salvestab praeguse toakuju backendi
     async saveToServer() {
       try {
-        const base = (import.meta as any).env?.NUXT_PUBLIC_API_BASE || (process.env as any)?.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
         normalizeCurrent()
-        await fetch(`${base}/api/room-shape`, {
+        await fetch(`${publicApiBase}/api/room-shape`, {
           method: 'PATCH',
           credentials: 'include',
           headers: { 'content-type': 'application/json' },

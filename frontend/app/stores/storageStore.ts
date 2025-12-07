@@ -49,13 +49,9 @@ export const useStorageStore = defineStore('storage', () => {
   const items = ref<StorageUnit[]>([])
   const currentRoomId = ref<number | null>(null)
 
-  // Tagastab API baas-URLi keskkonnast
-  function apiBase() {
-    // Nuxt 4 avalik runtime on import.meta.env
-    // SSR/Node kontekstis varuvariandina process.env
-    // @ts-ignore
-    return (import.meta as any).env?.NUXT_PUBLIC_API_BASE || (process.env as any)?.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
-  }
+  const runtime = (useRuntimeConfig?.() as any)
+  const publicCfg = runtime.public
+  const publicApiBase = publicCfg.apiBase
 
   // Teisendab backendist tulnud üksuse ja esemed kohalikuks StorageUnit-iks
   function mapUnit(u: any): StorageUnit {
@@ -76,13 +72,13 @@ export const useStorageStore = defineStore('storage', () => {
   // Veendub, et kasutajal on tuba; vajadusel loob uue
   async function ensureRoom(): Promise<number> {
     if (currentRoomId.value) return currentRoomId.value
-    const res = await fetch(`${apiBase()}/api/rooms`, { credentials: 'include' })
+    const res = await fetch(`${publicApiBase}/api/rooms`, { credentials: 'include' })
     const data = await res.json()
     if (data?.ok && data.rooms?.length) {
       currentRoomId.value = data.rooms[0].id
       return currentRoomId.value
     }
-    const create = await fetch(`${apiBase()}/api/rooms`, {
+    const create = await fetch(`${publicApiBase}/api/rooms`, {
       method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Minu tuba' })
     })
     const payload = await create.json()
@@ -93,7 +89,7 @@ export const useStorageStore = defineStore('storage', () => {
   // Laeb aktiivse toa üksused backendist
   async function loadUnits() {
     const roomId = await ensureRoom()
-    const res = await fetch(`${apiBase()}/api/rooms/${roomId}/units`, { credentials: 'include' })
+    const res = await fetch(`${publicApiBase}/api/rooms/${roomId}/units`, { credentials: 'include' })
     const data = await res.json()
     if (data?.ok && Array.isArray(data.units)) {
       items.value = data.units.map(mapUnit)
@@ -142,7 +138,7 @@ export const useStorageStore = defineStore('storage', () => {
   async function deleteUnit(id: number) {
   items.value = items.value.filter(i => i.id !== id)
   try { 
-    await fetch(`${apiBase()}/api/units/${id}`, { 
+    await fetch(`${publicApiBase}/api/units/${id}`, { 
       method: 'DELETE', 
       credentials: 'include' 
     }) 
@@ -193,7 +189,7 @@ export const useStorageStore = defineStore('storage', () => {
         name: u.name,
         contents: (u.contents || []).map(c => ({ name: c.name, quantity: Math.max(1, Math.round(c.quantity || 1)) }))
       })) }
-      const res = await fetch(`${apiBase()}/api/layout`, {
+      const res = await fetch(`${publicApiBase}/api/layout`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
