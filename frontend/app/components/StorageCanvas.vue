@@ -415,83 +415,100 @@ function onTransformEnd(id: number, e: any) {
                     return wantedCenter;
                   }
 
-                  const validCenter = findClosestCenterInsideRoom(
-                    wantedCenter,
-                    item.w,
-                    item.h,
-                    item.rotation
-                  );
-                  return validCenter;
-                }
-              }"
-              @mouseenter="() => (hoverId = item.id)"
-              @mouseleave="() => (hoverId = hoverId === item.id ? null : hoverId)"
-              @click="(e) => onRectClick(item.id, e)"
-              @dragend="(e) => onDragEnd(item.id, e, item)"
-              @transform="(e) => onTransform(item.id, e)"
-              @transformend="(e) => onTransformEnd(item.id, e)"
-            >
-              <!-- Item Rectangle -->
-              <v-rect
-                :config="{
-                  x: -item.w / 2,
-                  y: -item.h / 2,
-                  width: item.w,
-                  height: item.h,
-                  cornerRadius: 8,
-                  fill: 'rgba(148,163,184,0.12)',
-                  stroke: hoverId === item.id || selectedIds.includes(item.id) ? '#93c5fd' : '#334155',
-                  strokeWidth: hoverId === item.id || selectedIds.includes(item.id) ? 2 : 1
-                }"
-              />
+                const validCenter = findClosestCenterInsideRoom(wantedCenter, item.w, item.h, item.rotation)
+                return validCenter
+              }
+            }"
+            @mouseenter="() => hoverId = item.id"
+            @mouseleave="() => hoverId = (hoverId===item.id?null:hoverId)"
+            @click="(e: any) => onRectClick(item.id, e)"
+            @dragend="(e: any) => onDragEnd(item.id, e, item)"
+            @transform="(e: any) => onTransform(item.id, e)"
+            @transformend="(e: any) => onTransformEnd(item.id, e)"
+          >
+            
+            <v-rect :config="{
+              x: -item.w/2,
+              y: -item.h/2,
+              width: item.w,
+              height: item.h,
+              cornerRadius: 8,
+              fill: 'rgba(148,163,184,0.12)',
+              stroke: (hoverId===item.id || selectedIds.includes(item.id)) ? '#93c5fd' : '#334155',
+              strokeWidth: (hoverId===item.id || selectedIds.includes(item.id)) ? 2 : 1
+            }" />
 
-              <!-- Delete Button -->
-              <v-group
-                v-if="hoverId === item.id"
-                :config="{
-                  x: item.w / 2 - DELETE_BTN_SIZE / 2,
-                  y: -item.h / 2 - DELETE_BTN_SIZE / 2,
-                  listening: true
-                }"
-                @click="(e) => { e.cancelBubble = true; deleteItem(item.id); }"
-                @tap="(e) => { e.cancelBubble = true; deleteItem(item.id); }"
-                @mousedown="(e) => (e.cancelBubble = true)"
-                @touchstart="(e) => (e.cancelBubble = true)"
-              >
-                <v-circle
-                  :config="{
-                    x: 0,
-                    y: 0,
-                    radius: DELETE_BTN_SIZE / 2,
-                    fill: '#ef4444',
-                    stroke: '#ffffff',
-                    strokeWidth: 2,
-                    shadowColor: '#000000',
-                    shadowBlur: 4,
-                    shadowOpacity: 0.3,
-                    listening: true
-                  }"
-                  @mouseenter="(e) => { e.target.fill('#dc2626'); e.target.getLayer().batchDraw(); }"
-                  @mouseleave="(e) => { e.target.fill('#ef4444'); e.target.getLayer().batchDraw(); }"
-                />
-                <v-text
-                  :config="{
-                    x: -DELETE_BTN_SIZE / 2,
-                    y: -DELETE_BTN_SIZE / 2,
-                    width: DELETE_BTN_SIZE,
-                    height: DELETE_BTN_SIZE,
-                    text: '✕',
-                    fontSize: 16,
-                    fontStyle: 'bold',
-                    fill: '#ffffff',
-                    align: 'center',
-                    verticalAlign: 'middle',
-                    listening: false
-                  }"
-                />
-              </v-group>
+            <v-image
+              v-if="isImageEmoji(item.emoji)"
+              :config="{
+                x: -item.w/2,
+                y: -item.h/2,
+                width: item.w,
+                height: item.h,
+                image: getImage(item.emoji) || undefined,
+                listening: false
+              }"
+            />
+            <v-text
+              v-else
+              :config="{
+                x: -item.w/2,
+                y: -item.h/2,
+                width: item.w,
+                height: item.h,
+                align: 'center',
+                verticalAlign: 'middle',
+                text: item.emoji,
+                fontSize: Math.max(20, Math.min(item.w, item.h) * 0.5),
+                fill: '#ffffff'
+              }"
+            />
+
+            <v-group
+              v-if="hoverId === item.id"
+              :config="{
+                x: item.w/2 - DELETE_BTN_SIZE/2,
+                y: -item.h/2 - DELETE_BTN_SIZE/2,
+                listening: true
+              }"
+              @click="(e : any) => { e.cancelBubble = true; deleteItem(item.id); }"
+              @tap="(e: any) => { e.cancelBubble = true; deleteItem(item.id); }"
+              @mousedown="(e: any) => e.cancelBubble = true"
+              @touchstart="(e: any) => e.cancelBubble = true"
+            >
+              <v-circle :config="{
+              x: 0,
+              y: 0,
+              radius: DELETE_BTN_SIZE/2,
+              fill: '#ef4444',
+              stroke: '#ffffff',
+              strokeWidth: 2,
+              shadowColor: '#000000',
+              shadowBlur: 4,
+              shadowOpacity: 0.3,
+              listening: true
+            }" 
+            @mouseenter="(e: any) => { e.target.fill('#dc2626'); e.target.getLayer().batchDraw(); }"
+            @mouseleave="(e: any) => { e.target.fill('#ef4444'); e.target.getLayer().batchDraw(); }"
+            />
+              
+              <v-text :config="{
+                x: -DELETE_BTN_SIZE/2,
+                y: -DELETE_BTN_SIZE/2,
+                width: DELETE_BTN_SIZE,
+                height: DELETE_BTN_SIZE,
+                text: '✕',
+                fontSize: 16,
+                fontStyle: 'bold',
+                fill: '#ffffff',
+                align: 'center',
+                verticalAlign: 'middle',
+                listening: false
+              }" />
+              
             </v-group>
-          </template>
+          </v-group>
+        </template>
 
           <!-- Transformer -->
           <v-transformer

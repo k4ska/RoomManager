@@ -1,9 +1,9 @@
 // Lihtne autentimise abifunktsioon backend-i auth-endpointide kutsumiseks
 export function useAuthApi() {
     // runtimeConfig (nuxt.config) eelistus, see töötab nii dev kui prod builds
-  const runtime = (useRuntimeConfig?.() as any) || {}
-  const publicCfg = runtime.public || {}
-  const publicApiBase = publicCfg.apiBase || (import.meta as any).env?.NUXT_PUBLIC_API_BASE || (globalThis as any).process?.env?.NUXT_PUBLIC_API_BASE || ''
+  const runtime = (useRuntimeConfig?.() as any)
+  const publicCfg = runtime.public
+  const publicApiBase = publicCfg.apiBase
 
   // Kontroll, kas jookseme serveris (SSR) — ainult siis loeme server-poolseid runtime võtmeid
   const isServer = typeof window === 'undefined'

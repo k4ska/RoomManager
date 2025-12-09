@@ -6,7 +6,7 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      apiBase: (globalThis as any).process?.env?.NUXT_PUBLIC_API_BASE ?? (import.meta as any).env?.API_BASE_URL ?? 'http://localhost:4000'
+      apiBase: (globalThis as any).process?.env?.NUXT_PUBLIC_API_BASE
     }
   },
   app: {

@@ -65,11 +65,12 @@ services:
       # `NUXT_PUBLIC_API_BASE` is the client-visible API base (used by the browser).
       # For local development in a browser we want `http://localhost:4000` so
       # client-side fetches resolve to the host-mapped backend port.
-      NUXT_PUBLIC_API_BASE: http://localhost:4000
+      # NUXT_PUBLIC_API_BASE: http://localhost:4000
       # `API_INTERNAL_BASE` is used by server-side rendering inside the
       # frontend container so it can reach the backend service on the
       # Docker network via the service name `backend`.
-      API_INTERNAL_BASE: http://backend:4000
+      # API_INTERNAL_BASE: http://backend:4000
+      NUXT_API_URL: ${NUXT_PUBLIC_API_BASE}
     depends_on:
       - backend
     ports:
