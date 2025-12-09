@@ -24,6 +24,10 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
 
   const addPointMode = ref(false)
   const showShapeModal = ref(false)
+  const addWindowMode = ref(false)
+  // Store windows as edge-relative fractions (t1,t2 in [0,1]) so they follow wall geometry
+  const windows = ref<Array<{ edgeIndex: number; t1: number; t2: number }>>([])
+  const windowSelection = ref<{ edgeIndex: number; t: number } | null>(null)
 
   // Piirab väärtuse vahemikku [min, max]
   function clamp(v: number, min: number, max: number) {
@@ -158,12 +162,63 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     points.value.splice(insertIndex, 0, { x: clamp(x, 0, stage.width), y: clamp(y, 0, stage.height) })
   }
 
+  // Window management
+  function toggleAddWindowMode() {
+    addWindowMode.value = !addWindowMode.value
+    if (!addWindowMode.value) {
+      windowSelection.value = null
+    }
+  }
+
+  function selectWindowPoint(edgeIndex: number, point: Point) {
+    // project point to t on edge [0..1]
+    const a = points.value[edgeIndex]
+    const b = points.value[(edgeIndex + 1) % points.value.length]
+    const abx = b.x - a.x
+    const aby = b.y - a.y
+    const apx = point.x - a.x
+    const apy = point.y - a.y
+    const ab2 = abx * abx + aby * aby || 1
+    const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / ab2))
+
+    if (!windowSelection.value) {
+      // First point selected (store edge and t)
+      windowSelection.value = { edgeIndex, t }
+      return
+    }
+
+    if (windowSelection.value.edgeIndex === edgeIndex) {
+      // Second point on same edge - create window using sorted t values
+      const t1 = windowSelection.value.t
+      const t2 = t
+      const low = Math.min(t1, t2)
+      const high = Math.max(t1, t2)
+      windows.value.push({ edgeIndex, t1: low, t2: high })
+      windowSelection.value = null
+      return
+    }
+
+    // Different edge - start selection on new edge
+    windowSelection.value = { edgeIndex, t }
+  }
+
+  function deleteWindow(index: number) {
+    windows.value.splice(index, 1)
+  }
+
+  function clearWindows() {
+    windows.value = []
+  }
+
   return {
     stage,
     shape,
     points,
     addPointMode,
     showShapeModal,
+    addWindowMode,
+    windows,
+    windowSelection,
     updatePoint,
     resetShape,
     setShape,
@@ -173,6 +228,10 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     insertPointOnNearestEdge,
     snapEnabled,
     toggleSnap,
+    toggleAddWindowMode,
+    selectWindowPoint,
+    deleteWindow,
+    clearWindows,
     // Laeb salvestatud toakuju backendist (kui on)
     async loadFromServer() {
       try {
@@ -181,17 +240,37 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
         if (data?.ok && Array.isArray(data.shape)) {
           points.value = normalizeToStage(data.shape)
         }
+        // Load windows if backend returned them (stored as edge fractions)
+        if (data?.ok && Array.isArray(data.windows)) {
+          try {
+            // validate and sanitize
+            const parsed = data.windows.map((w: any) => {
+              const edgeIndex = Number.isFinite(w.edgeIndex) ? Math.max(0, Math.floor(w.edgeIndex)) : 0
+              const t1 = typeof w.t1 === 'number' ? Math.max(0, Math.min(1, w.t1)) : (typeof w.t === 'number' ? Math.max(0, Math.min(1, w.t)) : 0)
+              const t2 = typeof w.t2 === 'number' ? Math.max(0, Math.min(1, w.t2)) : t1
+              return { edgeIndex, t1, t2 }
+            })
+            windows.value = parsed
+          } catch (e) {
+            // ignore invalid windows
+          }
+        }
       } catch {}
     },
     // Salvestab praeguse toakuju backendi
     async saveToServer() {
       try {
         normalizeCurrent()
+        const payload: any = { points: points.value }
+        // include windows as edge-relative fractions so backend can persist them
+        if (windows.value && windows.value.length) {
+          payload.windows = windows.value.map(w => ({ edgeIndex: w.edgeIndex, t1: w.t1, t2: w.t2 }))
+        }
         await fetch(`${publicApiBase}/api/room-shape`, {
           method: 'PATCH',
           credentials: 'include',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ points: points.value })
+          body: JSON.stringify(payload)
         })
       } catch {}
     },

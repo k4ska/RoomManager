@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useRoomShapeStore } from '~/stores/roomShape'
 import { useStorageStore, type StorageType } from '~/stores/storageStore'
 
@@ -99,6 +99,39 @@ function getRectCornersFromTopLeft(x: number, y: number, w: number, h: number, d
     y: cy + p.x * sin + p.y * cos
   }))
 }
+
+// Helpers for window rendering (so windows show on the storage canvas)
+function getWindowPerp(p1: {x:number,y:number}, p2: {x:number,y:number}) {
+  const dx = p2.x - p1.x
+  const dy = p2.y - p1.y
+  const len = Math.hypot(dx, dy) || 1
+  const ux = dx / len
+  const uy = dy / len
+  const nx = -uy
+  const ny = ux
+  return { ux, uy, nx, ny }
+}
+
+function capPointsAt(p: {x:number,y:number}, nx: number, ny: number, capLen: number) {
+  const half = capLen / 2
+  return [p.x - nx * half, p.y - ny * half, p.x + nx * half, p.y + ny * half]
+}
+
+// Map room.windows (edge-relative) to real coordinates so windows follow walls
+const windowsWithPoints = computed(() => {
+  try {
+    return (room.windows || []).map((w: any, idx: number) => {
+      const a = room.points[w.edgeIndex]
+      const b = room.points[(w.edgeIndex + 1) % room.points.length]
+      if (!a || !b) return { p1: { x: 0, y: 0 }, p2: { x: 0, y: 0 }, index: idx }
+      const p1 = { x: a.x + (b.x - a.x) * (w.t1 ?? 0), y: a.y + (b.y - a.y) * (w.t1 ?? 0) }
+      const p2 = { x: a.x + (b.x - a.x) * (w.t2 ?? 0), y: a.y + (b.y - a.y) * (w.t2 ?? 0) }
+      return { p1, p2, index: idx }
+    })
+  } catch {
+    return []
+  }
+})
 
 // Kontrollib, kas pööratud ristkülik on täielikult ruumi sees ja eemale seintest
 function isRectFullyInsideRoom(x: number, y: number, w: number, h: number, rot: number) {
@@ -376,6 +409,25 @@ function onTransformEnd(id: number, e: any) {
           :fill="'rgba(16,185,129,0.06)'"
           @mousedown="clearSelection"
         />
+
+        <!-- Render windows saved on the room (show openings and caps) -->
+        <template v-for="(win, idx) in windowsWithPoints" :key="'win' + win.index">
+          <v-line :config="{
+              points: [win.p1.x, win.p1.y, win.p2.x, win.p2.y],
+              stroke: 'rgba(16,185,129,0.06)',
+              strokeWidth: 8,
+              lineCap: 'butt',
+              listening: false
+            }" />
+          <v-line :config="{
+              points: capPointsAt(win.p1, getWindowPerp(win.p1, win.p2).nx, getWindowPerp(win.p1, win.p2).ny, 14),
+              stroke: '#e5e7eb', strokeWidth: 2, listening: false
+            }" />
+          <v-line :config="{
+              points: capPointsAt(win.p2, getWindowPerp(win.p1, win.p2).nx, getWindowPerp(win.p1, win.p2).ny, 14),
+              stroke: '#e5e7eb', strokeWidth: 2, listening: false
+            }" />
+        </template>
 
         <template v-for="item in storage.items" :key="item.id">
           <v-group

@@ -13,6 +13,38 @@ const EMOJI_SIZE = 20
 const imageCache = new Map<string, HTMLImageElement | null>()
 const highlightSet = computed(() => new Set(props.highlightIds ?? []))
 
+// Helpers for windows rendering
+function getWindowPerp(p1: {x:number,y:number}, p2: {x:number,y:number}) {
+  const dx = p2.x - p1.x
+  const dy = p2.y - p1.y
+  const len = Math.hypot(dx, dy) || 1
+  const ux = dx / len
+  const uy = dy / len
+  const nx = -uy
+  const ny = ux
+  return { ux, uy, nx, ny }
+}
+
+function capPointsAt(p: {x:number,y:number}, nx: number, ny: number, capLen: number) {
+  const half = capLen / 2
+  return [p.x - nx * half, p.y - ny * half, p.x + nx * half, p.y + ny * half]
+}
+
+const windowsWithPoints = computed(() => {
+  try {
+    return (room.windows || []).map((w: any, idx: number) => {
+      const a = room.points[w.edgeIndex]
+      const b = room.points[(w.edgeIndex + 1) % room.points.length]
+      if (!a || !b) return { p1: { x: 0, y: 0 }, p2: { x: 0, y: 0 }, index: idx }
+      const p1 = { x: a.x + (b.x - a.x) * (w.t1 ?? 0), y: a.y + (b.y - a.y) * (w.t1 ?? 0) }
+      const p2 = { x: a.x + (b.x - a.x) * (w.t2 ?? 0), y: a.y + (b.y - a.y) * (w.t2 ?? 0) }
+      return { p1, p2, index: idx }
+    })
+  } catch {
+    return []
+  }
+})
+
 function isImageEmoji(value: string | null | undefined) {
   return !!value && (value.startsWith('data:image') || value.startsWith('http'))
 }
@@ -65,6 +97,24 @@ function isHighlighted(id: number) {
           :fill="'rgba(16,185,129,0.06)'"
           @click="() => emit('select', null)"
         />
+        <!-- Render windows saved on the room (show openings and caps) -->
+        <template v-for="(win, idx) in windowsWithPoints" :key="'win' + win.index">
+          <v-line :config="{
+              points: [win.p1.x, win.p1.y, win.p2.x, win.p2.y],
+              stroke: 'rgba(16,185,129,0.06)',
+              strokeWidth: 8,
+              lineCap: 'butt',
+              listening: false
+            }" />
+          <v-line :config="{
+              points: capPointsAt(win.p1, getWindowPerp(win.p1, win.p2).nx, getWindowPerp(win.p1, win.p2).ny, 14),
+              stroke: '#e5e7eb', strokeWidth: 2, listening: false
+            }" />
+          <v-line :config="{
+              points: capPointsAt(win.p2, getWindowPerp(win.p1, win.p2).nx, getWindowPerp(win.p1, win.p2).ny, 14),
+              stroke: '#e5e7eb', strokeWidth: 2, listening: false
+            }" />
+        </template>
         <template v-for="item in storage.items" :key="item.id">
           <!-- Click to select -->
           <v-group
