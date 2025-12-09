@@ -66,7 +66,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type { StorageType } from '~/stores/storageStore'
 import { useStorageStore } from '~/stores/storageStore'
 import { useRoomShapeStore } from '~/stores/roomShape'
@@ -97,9 +97,36 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const nameError = ref(false)
 const logoError = ref(false)
 
+// Load custom items from localStorage on init
+function loadCustomItems() {
+  try {
+    const stored = localStorage.getItem('storageSelector_customItems')
+    if (stored) {
+      customItems.value = JSON.parse(stored)
+    }
+  } catch (e) {
+    console.error('Failed to load custom items:', e)
+  }
+}
+
+// Save custom items to localStorage
+function saveCustomItemsToStorage() {
+  try {
+    localStorage.setItem('storageSelector_customItems', JSON.stringify(customItems.value))
+  } catch (e) {
+    console.error('Failed to save custom items:', e)
+  }
+}
+
+// Load on mount
+onMounted(() => {
+  loadCustomItems()
+})
+
 watch(newName, (v) => { if (v.trim()) nameError.value = false })
 watch(newLogo, (v) => { if (v) logoError.value = false })
 watch(openModal, (v) => { if (!v) resetForm() })
+watch(customItems, (v) => { saveCustomItemsToStorage() }, { deep: true })
 
 function resetForm() {
   newName.value = ''
@@ -235,6 +262,7 @@ function saveCustom() {
     emoji: newLogo.value!,
     isCustom: true
   })
+  saveCustomItemsToStorage()
   closeModal()
 }
 </script>
