@@ -422,10 +422,10 @@ function onTransformEnd(id: number, e: any) {
             <v-image
               v-if="isImageEmoji(item.emoji)"
               :config="{
-                x: -item.w/2,
-                y: -item.h/2,
-                width: item.w,
-                height: item.h,
+                x: -Math.min(item.w, item.h) * 0.7 / 2,
+                y: -Math.min(item.w, item.h) * 0.7 / 2,
+                width: Math.min(item.w, item.h) * 0.7,
+                height: Math.min(item.w, item.h) * 0.7,
                 image: getImage(item.emoji) || undefined,
                 listening: false
               }"
