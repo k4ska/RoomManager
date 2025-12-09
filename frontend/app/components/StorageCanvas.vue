@@ -440,7 +440,7 @@ function onTransformEnd(id: number, e: any) {
                 align: 'center',
                 verticalAlign: 'middle',
                 text: item.emoji,
-                fontSize: Math.max(20, Math.min(item.w, item.h) * 0.5),
+                fontSize: Math.max(20, Math.min(item.w, item.h) * 0.7),
                 fill: '#ffffff'
               }"
             />

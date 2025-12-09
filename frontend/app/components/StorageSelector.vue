@@ -289,9 +289,11 @@ h3 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.8rem;
-  height: 1.8rem;
-  font-size: 1.25rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  font-size: 1.8rem;
   line-height: 1;
   overflow: hidden;
   border-radius: 8px;
