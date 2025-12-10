@@ -4,11 +4,21 @@ import { computed, ref } from 'vue'
 import UusConfirmPopup from '~/components/uusConfirmPopup.vue'
 const store = useRoomShapeStore()
 const winConfirmRef = ref<any>(null)
+const doorConfirmRef = ref<any>(null)
 
 async function onDeleteWindow(index: number) {
   try {
     const ok = await winConfirmRef.value?.open({ title: 'Kustuta aken?', message: 'Kas oled kindel, et soovid akna kustutada?' })
     if (ok) store.deleteWindow(index)
+  } catch (e) {
+    // ignore
+  }
+}
+
+async function onDeleteDoor(index: number) {
+  try {
+    const ok = await doorConfirmRef.value?.open({ title: 'Kustuta uks?', message: 'Kas oled kindel, et soovid ukse kustutada?' })
+    if (ok) store.deleteDoor(index)
   } catch (e) {
     // ignore
   }
@@ -58,7 +68,7 @@ function canMovePoint(index: number, x: number, y: number) {
   return true
 }
 
-// Handles click to insert a point on the nearest edge or select window points
+// Handles click to insert a point on the nearest edge or select window/door points
 function handleLayerClick(e: any) {
   const stage = e.target?.getStage?.()
   const pos = stage?.getPointerPosition?.()
@@ -68,6 +78,12 @@ function handleLayerClick(e: any) {
   if (store.snapEnabled) {
     const s = snapToGrid(x, y)
     x = s.x; y = s.y
+  }
+
+  // Handle door point selection
+  if (store.addDoorMode) {
+    selectDoorPoint(x, y)
+    return
   }
 
   // Handle window point selection
@@ -117,6 +133,41 @@ function selectWindowPoint(x: number, y: number) {
   store.selectWindowPoint(bestEdge, bestPoint)
 }
 
+// Find nearest point on edge for door selection (single point)
+function selectDoorPoint(x: number, y: number) {
+  const pts = store.points
+  if (pts.length < 2) return
+
+  let bestDist = Number.POSITIVE_INFINITY
+  let bestEdge = 0
+  let bestPoint = { x, y }
+
+  // Find nearest point on any edge
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i]
+    const b = pts[(i + 1) % pts.length]
+
+    // Project point onto line segment
+    const abx = b.x - a.x
+    const aby = b.y - a.y
+    const apx = x - a.x
+    const apy = y - a.y
+    const ab2 = abx * abx + aby * aby
+    const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / ab2))
+    const qx = a.x + t * abx
+    const qy = a.y + t * aby
+
+    const dist = Math.hypot(x - qx, y - qy)
+    if (dist < bestDist) {
+      bestDist = dist
+      bestEdge = i
+      bestPoint = { x: qx, y: qy }
+    }
+  }
+
+  store.selectDoorPoint(bestEdge, bestPoint)
+}
+
 // Helpers for rendering windows: compute perpendicular and cap points
 function getWindowPerp(p1: {x:number,y:number}, p2: {x:number,y:number}) {
   const dx = p2.x - p1.x
@@ -161,6 +212,91 @@ const windowSelectionPoint = computed(() => {
   const y = a.y + (b.y - a.y) * sel.t
   return { x, y }
 })
+
+const doorSelectionPoint = computed(() => {
+  const sel = store.doorSelection
+  if (!sel) return null
+  const a = store.points[sel.edgeIndex]
+  const b = store.points[(sel.edgeIndex + 1) % store.points.length]
+  if (!a || !b) return null
+  const x = a.x + (b.x - a.x) * sel.t
+  const y = a.y + (b.y - a.y) * sel.t
+  return { x, y }
+})
+
+// Map doors (edge-relative) to actual coordinates and compute arc path
+const doorsWithPoints = computed(() => {
+  try {
+    return (store.doors || []).map((d: any, idx: number) => {
+      const a = store.points[d.edgeIndex]
+      const b = store.points[(d.edgeIndex + 1) % store.points.length]
+      if (!a || !b) return { ...d, p1: { x: 0, y: 0 }, p2: { x: 0, y: 0 }, index: idx }
+      
+      // Door opening endpoints on edge
+      const p1 = { x: a.x + (b.x - a.x) * (d.t1 ?? 0), y: a.y + (b.y - a.y) * (d.t1 ?? 0) }
+      const p2 = { x: a.x + (b.x - a.x) * (d.t2 ?? 0), y: a.y + (b.y - a.y) * (d.t2 ?? 0) }
+      
+      // Perpendicular direction inward (for L-junction)
+      const edgePerp = getWindowPerp(p1, p2)
+      const capLen = 18
+      
+      // L-junction at p1: vertical line along edge + perpendicular cap going outward
+      const lJuncVertStart = p1
+      const lJuncVertEnd = { x: p2.x, y: p2.y } // extends toward p2 along the edge
+      const lJuncCapEnd = { x: p1.x + edgePerp.nx * capLen, y: p1.y + edgePerp.ny * capLen } // tip of the L
+      
+      // Curved line from lJuncCapEnd to p2 using quadratic bezier with control point pulling curve outward,
+      // but never going further outward than the L tip horizontally. Clamp endpoint to wall segment.
+      const curvePoints = []
+      const midX = (lJuncCapEnd.x + p2.x) / 2
+      const midY = (lJuncCapEnd.y + p2.y) / 2
+      const outward = { nx: edgePerp.nx, ny: edgePerp.ny }
+      let cpOffset = 18
+      const vecToMid = { x: midX - lJuncCapEnd.x, y: midY - lJuncCapEnd.y }
+      const proj = vecToMid.x * outward.nx + vecToMid.y * outward.ny
+      if (proj + cpOffset > capLen) cpOffset = Math.max(0, capLen - proj)
+      const cpx = midX + outward.nx * cpOffset
+      const cpy = midY + outward.ny * cpOffset
+      // Clamp endpoint to wall segment
+      const clampToWall = (x, y) => {
+        // Project onto wall segment (p1 to p2)
+        const dx = p2.x - p1.x, dy = p2.y - p1.y
+        const len2 = dx * dx + dy * dy
+        if (len2 === 0) return { x: p1.x, y: p1.y }
+        let t = ((x - p1.x) * dx + (y - p1.y) * dy) / len2
+        t = Math.max(0, Math.min(1, t))
+        return { x: p1.x + t * dx, y: p1.y + t * dy }
+      }
+      for (let t = 0; t <= 1; t += 0.05) {
+        const tt = t * t
+        const mt = 1 - t
+        const mtt = mt * mt
+        let px = mtt * lJuncCapEnd.x + 2 * mt * t * cpx + tt * p2.x
+        let py = mtt * lJuncCapEnd.y + 2 * mt * t * cpy + tt * p2.y
+        // Clamp last point to wall
+        if (t === 1) {
+          const clamped = clampToWall(px, py)
+          px = clamped.x; py = clamped.y
+        }
+        curvePoints.push(px, py)
+      }
+      
+      return { 
+        ...d, 
+        p1, 
+        p2,
+        lJuncVertStart,
+        lJuncVertEnd,
+        lJuncCapEnd,
+        curvePoints,
+        index: idx 
+      }
+    })
+  } catch (e) {
+    return []
+  }
+})
+
 </script>
 
 <template>
@@ -279,6 +415,51 @@ const windowSelectionPoint = computed(() => {
           />
         </template>
 
+        <!-- Doors rendering (L-junction at p1, curved line from p2 to L tip) -->
+        <template v-for="(door, doorIdx) in doorsWithPoints" :key="'door' + door.index">
+          <!-- L-junction: vertical line along the edge from p1 -->
+          <v-line
+            :config="{
+              points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncVertEnd.x, door.lJuncVertEnd.y],
+              stroke: '#e5e7eb',
+              strokeWidth: 2,
+              listening: false
+            }"
+          />
+          <!-- L-junction: perpendicular cap going outward from p1 -->
+          <v-line
+            :config="{
+              points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncCapEnd.x, door.lJuncCapEnd.y],
+              stroke: '#e5e7eb',
+              strokeWidth: 2,
+              listening: false
+            }"
+          />
+          <!-- Curved line from p2 to the tip of L-junction (using bezier curve points, white color) -->
+          <v-line
+            :config="{
+              points: door.curvePoints,
+              stroke: '#fff',
+              strokeWidth: 2.5,
+              listening: false,
+              lineCap: 'round'
+            }"
+          />
+          <!-- Delete door button -->
+          <v-circle
+            :config="{
+              x: (door.p1.x + door.p2.x) / 2,
+              y: (door.p1.y + door.p2.y) / 2,
+              radius: 6,
+              fill: '#ef4444',
+              stroke: '#ffffff',
+              strokeWidth: 1,
+              opacity: 0.9
+            }"
+            @click="(e:any) => { e.cancelBubble = true; onDeleteDoor(door.index) }"
+          />
+        </template>
+
         <!-- Window selection preview -->
         <template v-if="windowSelectionPoint">
           <v-circle
@@ -302,9 +483,34 @@ const windowSelectionPoint = computed(() => {
             }"
           />
         </template>
+
+        <!-- Door selection preview -->
+        <template v-if="doorSelectionPoint">
+          <v-circle
+            :config="{
+              x: doorSelectionPoint.x,
+              y: doorSelectionPoint.y,
+              radius: 5,
+              fill: '#fbbf24',
+              stroke: '#ffffff',
+              strokeWidth: 1
+            }"
+          />
+          <v-text
+            :config="{
+              x: doorSelectionPoint.x + 10,
+              y: doorSelectionPoint.y - 10,
+              text: 'Select 2nd point',
+              fontSize: 12,
+              fill: '#fbbf24',
+              listening: false
+            }"
+          />
+        </template>
       </v-layer>
     </v-stage>
     <UusConfirmPopup ref="winConfirmRef" />
+    <UusConfirmPopup ref="doorConfirmRef" />
   </div>
 </template>
 

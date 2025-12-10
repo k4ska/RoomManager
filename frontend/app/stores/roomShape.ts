@@ -25,9 +25,13 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
   const addPointMode = ref(false)
   const showShapeModal = ref(false)
   const addWindowMode = ref(false)
+  const addDoorMode = ref(false)
   // Store windows as edge-relative fractions (t1,t2 in [0,1]) so they follow wall geometry
   const windows = ref<Array<{ edgeIndex: number; t1: number; t2: number }>>([])
   const windowSelection = ref<{ edgeIndex: number; t: number } | null>(null)
+  // Store doors as edge-relative fractions (t in [0,1]) so they follow wall geometry
+  const doors = ref<Array<{ edgeIndex: number; t: number }>>([])
+  const doorSelection = ref<{ edgeIndex: number; t: number } | null>(null)
 
   // Piirab väärtuse vahemikku [min, max]
   function clamp(v: number, min: number, max: number) {
@@ -210,6 +214,54 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     windows.value = []
   }
 
+  // Door management
+  function toggleAddDoorMode() {
+    addDoorMode.value = !addDoorMode.value
+    if (!addDoorMode.value) {
+      doorSelection.value = null
+    }
+  }
+
+  function selectDoorPoint(edgeIndex: number, point: Point) {
+    // project point to t on edge [0..1]
+    const a = points.value[edgeIndex]
+    const b = points.value[(edgeIndex + 1) % points.value.length]
+    const abx = b.x - a.x
+    const aby = b.y - a.y
+    const apx = point.x - a.x
+    const apy = point.y - a.y
+    const ab2 = abx * abx + aby * aby || 1
+    const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / ab2))
+
+    if (!doorSelection.value) {
+      // First point selected (store edge and t)
+      doorSelection.value = { edgeIndex, t }
+      return
+    }
+
+    if (doorSelection.value.edgeIndex === edgeIndex) {
+      // Second point on same edge - create door using sorted t values
+      const t1 = doorSelection.value.t
+      const t2 = t
+      const low = Math.min(t1, t2)
+      const high = Math.max(t1, t2)
+      doors.value.push({ edgeIndex, t1: low, t2: high })
+      doorSelection.value = null
+      return
+    }
+
+    // Different edge - start selection on new edge
+    doorSelection.value = { edgeIndex, t }
+  }
+
+  function deleteDoor(index: number) {
+    doors.value.splice(index, 1)
+  }
+
+  function clearDoors() {
+    doors.value = []
+  }
+
   return {
     stage,
     shape,
@@ -217,8 +269,11 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     addPointMode,
     showShapeModal,
     addWindowMode,
+    addDoorMode,
     windows,
     windowSelection,
+    doors,
+    doorSelection,
     updatePoint,
     resetShape,
     setShape,
@@ -232,6 +287,10 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     selectWindowPoint,
     deleteWindow,
     clearWindows,
+    toggleAddDoorMode,
+    selectDoorPoint,
+    deleteDoor,
+    clearDoors,
     // Laeb salvestatud toakuju backendist (kui on)
     async loadFromServer() {
       try {
@@ -239,12 +298,15 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
         const data = await res.json()
         if (data?.ok && Array.isArray(data.shape)) {
           points.value = normalizeToStage(data.shape)
+        } else if (data?.ok && data.shape && Array.isArray((data.shape as any).points)) {
+          points.value = normalizeToStage((data.shape as any).points)
         }
-        // Load windows if backend returned them (stored as edge fractions)
-        if (data?.ok && Array.isArray(data.windows)) {
+        
+        // Load windows from new nested shape or top-level for backward compatibility
+        const rawWindows = Array.isArray((data.shape as any)?.windows) ? (data.shape as any).windows : (Array.isArray(data.windows) ? data.windows : null)
+        if (rawWindows) {
           try {
-            // validate and sanitize
-            const parsed = data.windows.map((w: any) => {
+            const parsed = rawWindows.map((w: any) => {
               const edgeIndex = Number.isFinite(w.edgeIndex) ? Math.max(0, Math.floor(w.edgeIndex)) : 0
               const t1 = typeof w.t1 === 'number' ? Math.max(0, Math.min(1, w.t1)) : (typeof w.t === 'number' ? Math.max(0, Math.min(1, w.t)) : 0)
               const t2 = typeof w.t2 === 'number' ? Math.max(0, Math.min(1, w.t2)) : t1
@@ -253,6 +315,22 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
             windows.value = parsed
           } catch (e) {
             // ignore invalid windows
+          }
+        }
+
+        // Load doors from shape
+        const rawDoors = Array.isArray((data.shape as any)?.doors) ? (data.shape as any).doors : (Array.isArray(data.doors) ? data.doors : null)
+        if (rawDoors) {
+          try {
+            const parsed = rawDoors.map((d: any) => {
+              const edgeIndex = Number.isFinite(d.edgeIndex) ? Math.max(0, Math.floor(d.edgeIndex)) : 0
+              const t1 = typeof d.t1 === 'number' ? Math.max(0, Math.min(1, d.t1)) : (typeof d.t === 'number' ? Math.max(0, Math.min(1, d.t)) : 0)
+              const t2 = typeof d.t2 === 'number' ? Math.max(0, Math.min(1, d.t2)) : t1
+              return { edgeIndex, t1, t2 }
+            })
+            doors.value = parsed
+          } catch (e) {
+            // ignore invalid doors
           }
         }
       } catch {}
@@ -265,6 +343,10 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
         // include windows as edge-relative fractions so backend can persist them
         if (windows.value && windows.value.length) {
           payload.windows = windows.value.map(w => ({ edgeIndex: w.edgeIndex, t1: w.t1, t2: w.t2 }))
+        }
+        // include doors as edge-relative fractions so backend can persist them
+        if (doors.value && doors.value.length) {
+          payload.doors = doors.value.map(d => ({ edgeIndex: d.edgeIndex, t1: d.t1, t2: d.t2 }))
         }
         await fetch(`${publicApiBase}/api/room-shape`, {
           method: 'PATCH',

@@ -45,6 +45,70 @@ const windowsWithPoints = computed(() => {
   }
 })
 
+// Map room.doors (edge-relative) to real coordinates with L-junction and curved line
+const doorsWithPoints = computed(() => {
+  try {
+    return (room.doors || []).map((d: any, idx: number) => {
+      const a = room.points[d.edgeIndex]
+      const b = room.points[(d.edgeIndex + 1) % room.points.length]
+      if (!a || !b) return { ...d, p1: { x: 0, y: 0 }, p2: { x: 0, y: 0 }, index: idx }
+      
+      // Door opening endpoints on edge
+      const p1 = { x: a.x + (b.x - a.x) * (d.t1 ?? 0), y: a.y + (b.y - a.y) * (d.t1 ?? 0) }
+      const p2 = { x: a.x + (b.x - a.x) * (d.t2 ?? 0), y: a.y + (b.y - a.y) * (d.t2 ?? 0) }
+      
+      // Perpendicular direction inward (for L-junction)
+      const edgePerp = getWindowPerp(p1, p2)
+      const capLen = 18
+      
+      // L-junction at p1: vertical line along edge + perpendicular cap going outward
+      const lJuncVertStart = p1
+      const lJuncVertEnd = { x: p2.x, y: p2.y } // extends toward p2 along the edge
+      const lJuncCapEnd = { x: p1.x + edgePerp.nx * capLen, y: p1.y + edgePerp.ny * capLen } // tip of the L
+      
+      // Curved line from lJuncCapEnd to p2 using quadratic bezier with control point pulling curve outward,
+      // but never going further outward than the L tip horizontally. Clamp endpoint to wall segment.
+      const curvePoints = []
+      const midX = (lJuncCapEnd.x + p2.x) / 2
+      const midY = (lJuncCapEnd.y + p2.y) / 2
+      const outward = { nx: edgePerp.nx, ny: edgePerp.ny }
+      let cpOffset = 18
+      const vecToMid = { x: midX - lJuncCapEnd.x, y: midY - lJuncCapEnd.y }
+      const proj = vecToMid.x * outward.nx + vecToMid.y * outward.ny
+      if (proj + cpOffset > capLen) cpOffset = Math.max(0, capLen - proj)
+      const cpx = midX + outward.nx * cpOffset
+      const cpy = midY + outward.ny * cpOffset
+      // Clamp endpoint to wall segment
+      const clampToWall = (x, y) => {
+        // Project onto wall segment (p1 to p2)
+        const dx = p2.x - p1.x, dy = p2.y - p1.y
+        const len2 = dx * dx + dy * dy
+        if (len2 === 0) return { x: p1.x, y: p1.y }
+        let t = ((x - p1.x) * dx + (y - p1.y) * dy) / len2
+        t = Math.max(0, Math.min(1, t))
+        return { x: p1.x + t * dx, y: p1.y + t * dy }
+      }
+      for (let t = 0; t <= 1; t += 0.05) {
+        const tt = t * t
+        const mt = 1 - t
+        const mtt = mt * mt
+        let px = mtt * lJuncCapEnd.x + 2 * mt * t * cpx + tt * p2.x
+        let py = mtt * lJuncCapEnd.y + 2 * mt * t * cpy + tt * p2.y
+        // Clamp last point to wall
+        if (t === 1) {
+          const clamped = clampToWall(px, py)
+          px = clamped.x; py = clamped.y
+        }
+        curvePoints.push(px, py)
+      }
+      
+      return { ...d, p1, p2, lJuncVertStart, lJuncVertEnd, lJuncCapEnd, curvePoints, index: idx }
+    })
+  } catch {
+    return []
+  }
+})
+
 function isImageEmoji(value: string | null | undefined) {
   return !!value && (value.startsWith('data:image') || value.startsWith('http'))
 }
@@ -114,6 +178,37 @@ function isHighlighted(id: number) {
               points: capPointsAt(win.p2, getWindowPerp(win.p1, win.p2).nx, getWindowPerp(win.p1, win.p2).ny, 14),
               stroke: '#e5e7eb', strokeWidth: 2, listening: false
             }" />
+        </template>
+        <!-- Doors (L-junction at p1, curved line from p2 to L tip) -->
+        <template v-for="(door, idx) in doorsWithPoints" :key="'door' + door.index">
+          <!-- L-junction: vertical line along the edge from p1 -->
+          <v-line
+            :config="{
+              points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncVertEnd.x, door.lJuncVertEnd.y],
+              stroke: '#e5e7eb',
+              strokeWidth: 2,
+              listening: false
+            }"
+          />
+          <!-- L-junction: perpendicular cap going outward from p1 -->
+          <v-line
+            :config="{
+              points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncCapEnd.x, door.lJuncCapEnd.y],
+              stroke: '#e5e7eb',
+              strokeWidth: 2,
+              listening: false
+            }"
+          />
+          <!-- Curved line from p2 to the tip of L-junction (using bezier curve points, white color) -->
+          <v-line
+            :config="{
+              points: door.curvePoints,
+              stroke: '#fff',
+              strokeWidth: 2.5,
+              listening: false,
+              lineCap: 'round'
+            }"
+          />
         </template>
         <template v-for="item in storage.items" :key="item.id">
           <!-- Click to select -->

@@ -40,7 +40,7 @@ namespace backend.Controllers
             return Ok(new { ok = true, shape, roomId = room.Id });
         }
 
-        public record ShapeDto(object? points);
+        public record ShapeDto(object? points, object? windows, object? doors);
         // PATCH /api/room-shape (toa kuju salvestamine)
         [HttpPatch("room-shape")]
         public async Task<IActionResult> PatchRoomShape([FromBody] ShapeDto dto)
@@ -53,7 +53,9 @@ namespace backend.Controllers
                 room = new Room { UserId = uid.Value, Name = "Minu tuba", Shape = "[]", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
                 _db.Rooms.Add(room); await _db.SaveChangesAsync();
             }
-            room.Shape = System.Text.Json.JsonSerializer.Serialize(dto.points);
+            // Persist full shape object (points + windows + doors) so frontend can store additional geometry
+            var shapeObj = new { points = dto.points, windows = dto.windows, doors = dto.doors };
+            room.Shape = System.Text.Json.JsonSerializer.Serialize(shapeObj);
             room.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
             return Ok(new { ok = true, roomId = room.Id });
