@@ -139,7 +139,6 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     let bestDist = Number.POSITIVE_INFINITY
     let insertIndex = 0
 
-    // Arvutab kauguse punktist sirglõiguni
     function distPointToSeg(px: number, py: number, ax: number, ay: number, bx: number, by: number) {
       const abx = bx - ax
       const aby = by - ay
@@ -154,6 +153,12 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
       return Math.sqrt(dx * dx + dy * dy)
     }
 
+    // Save old points for remapping
+    const oldPoints = arr.map(p => ({ x: p.x, y: p.y }))
+    const oldWindows = windows.value.map(w => ({ ...w }))
+    const oldDoors = doors.value.map(d => ({ ...d }))
+
+    // Find where to insert new point
     for (let i = 0; i < arr.length; i++) {
       const a = arr[i]
       const b = arr[(i + 1) % arr.length]
@@ -164,6 +169,98 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
       }
     }
     points.value.splice(insertIndex, 0, { x: clamp(x, 0, stage.width), y: clamp(y, 0, stage.height) })
+
+    // Helper: get absolute position of window/door on old wall
+    function getFeaturePos(feature: { edgeIndex: number; t1?: number; t2?: number; t?: number }) {
+      const a = oldPoints[feature.edgeIndex]
+      const b = oldPoints[(feature.edgeIndex + 1) % oldPoints.length]
+      // For windows: t1 and t2, for doors: t1/t2 or t
+      if (feature.t1 !== undefined && feature.t2 !== undefined) {
+        // Use midpoint for remapping
+        const tx = (feature.t1 + feature.t2) / 2
+        return { x: a.x + (b.x - a.x) * tx, y: a.y + (b.y - a.y) * tx }
+      } else {
+        const t = feature.t ?? 0
+        return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
+      }
+    }
+
+    // Remap windows
+    windows.value = oldWindows.map(w => {
+      const pos = getFeaturePos(w)
+      // Find closest edge on new wall
+      let bestEdge = 0, bestDist = Number.POSITIVE_INFINITY, bestT = 0
+      for (let i = 0; i < points.value.length; i++) {
+        const a = points.value[i]
+        const b = points.value[(i + 1) % points.value.length]
+        // Project pos onto edge
+        const abx = b.x - a.x, aby = b.y - a.y
+        const apx = pos.x - a.x, apy = pos.y - a.y
+        const ab2 = abx * abx + aby * aby || 1
+        const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / ab2))
+        const qx = a.x + abx * t, qy = a.y + aby * t
+        const dist = Math.sqrt((pos.x - qx) ** 2 + (pos.y - qy) ** 2)
+        if (dist < bestDist) {
+          bestDist = dist
+          bestEdge = i
+          bestT = t
+        }
+      }
+      // For windows, keep width by projecting both endpoints
+      const a = oldPoints[w.edgeIndex], b = oldPoints[(w.edgeIndex + 1) % oldPoints.length]
+      const p1 = { x: a.x + (b.x - a.x) * w.t1, y: a.y + (b.y - a.y) * w.t1 }
+      const p2 = { x: a.x + (b.x - a.x) * w.t2, y: a.y + (b.y - a.y) * w.t2 }
+      // Project both endpoints to new edge
+      const newA = points.value[bestEdge], newB = points.value[(bestEdge + 1) % points.value.length]
+      function projectToEdge(pt: { x: number; y: number }, a: Point, b: Point) {
+        const abx = b.x - a.x, aby = b.y - a.y
+        const apx = pt.x - a.x, apy = pt.y - a.y
+        const ab2 = abx * abx + aby * aby || 1
+        return Math.max(0, Math.min(1, (apx * abx + apy * aby) / ab2))
+      }
+      const t1 = projectToEdge(p1, newA, newB)
+      const t2 = projectToEdge(p2, newA, newB)
+      return { edgeIndex: bestEdge, t1: Math.min(t1, t2), t2: Math.max(t1, t2) }
+    })
+
+    // Remap doors
+    doors.value = oldDoors.map(d => {
+      const pos = getFeaturePos(d)
+      let bestEdge = 0, bestDist = Number.POSITIVE_INFINITY, bestT = 0
+      for (let i = 0; i < points.value.length; i++) {
+        const a = points.value[i]
+        const b = points.value[(i + 1) % points.value.length]
+        const abx = b.x - a.x, aby = b.y - a.y
+        const apx = pos.x - a.x, apy = pos.y - a.y
+        const ab2 = abx * abx + aby * aby || 1
+        const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / ab2))
+        const qx = a.x + abx * t, qy = a.y + aby * t
+        const dist = Math.sqrt((pos.x - qx) ** 2 + (pos.y - qy) ** 2)
+        if (dist < bestDist) {
+          bestDist = dist
+          bestEdge = i
+          bestT = t
+        }
+      }
+      // For doors, project endpoints if t1/t2 exist
+      if (d.t1 !== undefined && d.t2 !== undefined) {
+        const a = oldPoints[d.edgeIndex], b = oldPoints[(d.edgeIndex + 1) % oldPoints.length]
+        const p1 = { x: a.x + (b.x - a.x) * d.t1, y: a.y + (b.y - a.y) * d.t1 }
+        const p2 = { x: a.x + (b.x - a.x) * d.t2, y: a.y + (b.y - a.y) * d.t2 }
+        const newA = points.value[bestEdge], newB = points.value[(bestEdge + 1) % points.value.length]
+        function projectToEdge(pt: { x: number; y: number }, a: Point, b: Point) {
+          const abx = b.x - a.x, aby = b.y - a.y
+          const apx = pt.x - a.x, apy = pt.y - a.y
+          const ab2 = abx * abx + aby * aby || 1
+          return Math.max(0, Math.min(1, (apx * abx + apy * aby) / ab2))
+        }
+        const t1 = projectToEdge(p1, newA, newB)
+        const t2 = projectToEdge(p2, newA, newB)
+        return { edgeIndex: bestEdge, t1: Math.min(t1, t2), t2: Math.max(t1, t2) }
+      } else {
+        return { edgeIndex: bestEdge, t: bestT }
+      }
+    })
   }
 
   // Window management
