@@ -5,6 +5,9 @@ import UusConfirmPopup from '~/components/uusConfirmPopup.vue'
 const store = useRoomShapeStore()
 const winConfirmRef = ref<any>(null)
 const doorConfirmRef = ref<any>(null)
+// metrics panel removed: no panel position or dragging state
+
+// (metrics panel removed) room area calculation and panel UI moved out
 
 async function onDeleteWindow(index: number) {
   try {
@@ -69,6 +72,9 @@ function canMovePoint(index: number, x: number, y: number) {
 }
 
 // Handles click to insert a point on the nearest edge or select window/door points
+// Resize a wall by changing its length (keeps first point fixed, moves second point)
+// panel-related functions removed
+
 function handleLayerClick(e: any) {
   const stage = e.target?.getStage?.()
   const pos = stage?.getPointerPosition?.()
@@ -95,6 +101,7 @@ function handleLayerClick(e: any) {
   // Handle adding point to edge
   if (store.addPointMode) {
     store.insertPointOnNearestEdge(x, y)
+    return
   }
 }
 
@@ -297,6 +304,83 @@ const doorsWithPoints = computed(() => {
   }
 })
 
+// --- Simple draggable metrics panel state & helpers ---
+const panelPos = ref({ x: 40, y: 60 })
+const isDragging = ref(false)
+const dragOffset = ref({ x: 0, y: 0 })
+
+function startDragPanel(e: MouseEvent) {
+  isDragging.value = true
+  dragOffset.value = { x: e.clientX - panelPos.value.x, y: e.clientY - panelPos.value.y }
+  document.addEventListener('mousemove', moveDragPanel)
+  document.addEventListener('mouseup', stopDragPanel)
+}
+
+function moveDragPanel(e: MouseEvent) {
+  if (!isDragging.value) return
+  panelPos.value = { x: e.clientX - dragOffset.value.x, y: e.clientY - dragOffset.value.y }
+}
+
+function stopDragPanel() {
+  isDragging.value = false
+  document.removeEventListener('mousemove', moveDragPanel)
+  document.removeEventListener('mouseup', stopDragPanel)
+}
+
+// compute room area (shoelace) in meters^2 using store.metricsScale
+const roomAreaM2 = computed(() => {
+  const pts = store.points
+  if (!pts || pts.length < 3) return 0
+  let area = 0
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length
+    area += pts[i].x * pts[j].y - pts[j].x * pts[i].y
+  }
+  area = Math.abs(area) / 2
+  return area / (store.metricsScale * store.metricsScale)
+})
+
+function getWallPixels(edgeIndex: number) {
+  const a = store.points[edgeIndex]
+  const b = store.points[(edgeIndex + 1) % store.points.length]
+  if (!a || !b) return 0
+  return Math.hypot(b.x - a.x, b.y - a.y)
+}
+
+function resizeWall(edgeIndex: number, newLengthMeters: number) {
+  const a = store.points[edgeIndex]
+  const b = store.points[(edgeIndex + 1) % store.points.length]
+  if (!a || !b) return
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const current = Math.hypot(dx, dy)
+  if (current === 0) return
+  const newPx = Math.max(1, newLengthMeters * store.metricsScale)
+  const ratio = newPx / current
+  const nx = a.x + dx * ratio
+  const ny = a.y + dy * ratio
+  store.updatePoint((edgeIndex + 1) % store.points.length, nx, ny)
+}
+
+// Called when user edits wall length (meters) in panel.
+function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
+  if (!newLengthMeters || newLengthMeters <= 0) return
+  const px = getWallPixels(edgeIndex)
+  if (px <= 0) return
+  // required pixels-per-meter so that given meters fit into current pixel length
+  const requiredScale = px / newLengthMeters
+  if (isFinite(requiredScale) && requiredScale > 0) {
+    // Only reduce global scale when necessary (do not increase it).
+    if (requiredScale < store.metricsScale) {
+      // choose integer px/m (floor) but at least 1
+      const newScale = Math.max(1, Math.floor(requiredScale))
+      store.setMetricsScale(newScale)
+    }
+  }
+  // now resize using the (possibly updated) store.metricsScale
+  resizeWall(edgeIndex, newLengthMeters)
+}
+
 </script>
 
 <template>
@@ -335,6 +419,7 @@ const doorsWithPoints = computed(() => {
           }"
         />
 
+        <!-- Wall polygon -->
         <v-line
           :points="store.points.flatMap(p => [p.x, p.y])"
           :closed="true"
@@ -342,9 +427,10 @@ const doorsWithPoints = computed(() => {
           :strokeWidth="2.5"
           :fill="'rgba(16,185,129,0.08)'"
         />
+        <!-- Regular points (green vertices) -->
         <v-circle
           v-for="(p, i) in store.points"
-          :key="i"
+          :key="'pt' + i"
           :config="{
             x: p.x,
             y: p.y,
@@ -507,10 +593,67 @@ const doorsWithPoints = computed(() => {
             }"
           />
         </template>
+
+        <!-- Wall metrics display on canvas grid -->
+        <template v-if="store.showMetrics">
+          <template v-for="(p, i) in store.points" :key="'wall-metric-' + i">
+            <v-text
+              :config="(() => {
+                const a = store.points[i]
+                const b = store.points[(i + 1) % store.points.length]
+                if (!a || !b) return { x: 0, y: 0, text: '', fontSize: 0 }
+                const midX = (a.x + b.x) / 2
+                const midY = (a.y + b.y) / 2
+                const lengthM = store.getWallLengthMeters(i)
+                return {
+                  x: midX - 25,
+                  y: midY - 15,
+                  text: 'S' + (i + 1) + ': ' + lengthM.toFixed(2) + 'm',
+                  fontSize: 12,
+                  fill: '#fbbf24',
+                  fontStyle: 'bold',
+                  listening: false
+                }
+              })()"
+            />
+          </template>
+        </template>
       </v-layer>
     </v-stage>
     <UusConfirmPopup ref="winConfirmRef" />
     <UusConfirmPopup ref="doorConfirmRef" />
+
+    <!-- Simple metrics panel -->
+    <div
+      v-if="store.showMetrics"
+      class="simple-metrics-panel"
+      :style="{ left: panelPos.x + 'px', top: panelPos.y + 'px' }"
+    >
+      <div class="simple-panel-header" @mousedown.prevent="startDragPanel">
+        <div>Mõõdud</div>
+        <button class="simple-close" @click="store.toggleShowMetrics()">×</button>
+      </div>
+      <div class="simple-panel-body">
+        <div class="row">
+          <label>Px per meter:</label>
+          <input type="number" :value="store.metricsScale" step="1" min="1" @input="e => {
+            const v = parseInt((e.target as any).value, 10)
+            if (!isNaN(v)) store.setMetricsScale(v)
+          }" />
+        </div>
+        <div class="row">
+          <label>Ruumi pindala (m²):</label>
+          <div>{{ roomAreaM2.toFixed(2) }}</div>
+        </div>
+        <div class="walls-list">
+          <div class="walls-header">Seinad</div>
+          <div v-for="(_, i) in store.points" :key="'w' + i" class="wall-row">
+            <div class="wall-label">S{{ i + 1 }}</div>
+              <input class="wall-meter" type="number" :value="store.getWallLengthMeters(i).toFixed(2)" @input="e => onWallMetersChange(i, parseFloat((e.target as any).value || '0'))" step="0.1" />
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -518,6 +661,39 @@ const doorsWithPoints = computed(() => {
 .canvas-wrap { 
   display: flex; 
   justify-content: center; 
+  position: relative;
 }
+
+/* Simple metrics panel styles */
+.simple-metrics-panel {
+  position: fixed;
+  width: 260px;
+  background: rgba(11,18,34,0.95);
+  border: 1px solid #fbbf24;
+  color: #e5e7eb;
+  z-index: 5000;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+  font-size: 12px;
+}
+.simple-panel-header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:8px 10px;
+  border-bottom:1px solid rgba(251,191,36,0.08);
+  cursor:grab;
+  color:#fbbf24;
+  font-weight:600;
+}
+.simple-close{background:none;border:0;color:#fbbf24;font-size:16px;cursor:pointer}
+.simple-panel-body{padding:8px}
+.simple-panel-body .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.walls-list{max-height:200px;overflow:auto;border-top:1px dashed rgba(255,255,255,0.03);padding-top:8px}
+.walls-header{color:#fbbf24;font-weight:700;margin-bottom:6px}
+.wall-row{display:flex;gap:6px;align-items:center;padding:4px 0}
+.wall-label{width:30px;color:#fbbf24}
+.wall-px{width:70px;color:#cbd5e1;font-size:11px}
+.wall-meter{flex:1;padding:4px;border-radius:4px;border:1px solid rgba(251,191,36,0.15);background:rgba(51,65,85,0.6);color:#fbbf24;text-align:right}
 </style>
 

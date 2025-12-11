@@ -26,13 +26,15 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
   const showShapeModal = ref(false)
   const addWindowMode = ref(false)
   const addDoorMode = ref(false)
+  const showMetrics = ref(false)
+  // Metrics scale: 40 pixels = 1 meter (grid square = 1m by default)
+  const metricsScale = ref(40) // pixels per meter
   // Store windows as edge-relative fractions (t1,t2 in [0,1]) so they follow wall geometry
-  const windows = ref<Array<{ edgeIndex: number; t1: number; t2: number }>>([])
+  const windows = ref<Array<{ edgeIndex: number; t1: number; t2: number }>>([])  
   const windowSelection = ref<{ edgeIndex: number; t: number } | null>(null)
   // Store doors as edge-relative fractions (t in [0,1]) so they follow wall geometry
-  const doors = ref<Array<{ edgeIndex: number; t: number }>>([])
+  const doors = ref<Array<{ edgeIndex: number; t: number }>>([])  
   const doorSelection = ref<{ edgeIndex: number; t: number } | null>(null)
-
   // Piirab väärtuse vahemikku [min, max]
   function clamp(v: number, min: number, max: number) {
     return Math.max(min, Math.min(max, v))
@@ -359,6 +361,25 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     doors.value = []
   }
 
+  // Metrics helpers
+  function toggleShowMetrics() {
+    showMetrics.value = !showMetrics.value
+  }
+
+  function getWallLengthMeters(edgeIndex: number): number {
+    const a = points.value[edgeIndex]
+    const b = points.value[(edgeIndex + 1) % points.value.length]
+    if (!a || !b) return 0
+    const pixels = Math.hypot(b.x - a.x, b.y - a.y)
+    return pixels / metricsScale.value
+  }
+
+  function setMetricsScale(pixelsPerMeter: number) {
+    // enforce integer pixels-per-meter and a minimum of 1
+    const intVal = Math.max(1, Math.floor(pixelsPerMeter || 0))
+    metricsScale.value = intVal
+  }
+
   return {
     stage,
     shape,
@@ -367,6 +388,8 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     showShapeModal,
     addWindowMode,
     addDoorMode,
+    showMetrics,
+    metricsScale,
     windows,
     windowSelection,
     doors,
@@ -380,6 +403,9 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     insertPointOnNearestEdge,
     snapEnabled,
     toggleSnap,
+    toggleShowMetrics,
+    getWallLengthMeters,
+    setMetricsScale,
     toggleAddWindowMode,
     selectWindowPoint,
     deleteWindow,

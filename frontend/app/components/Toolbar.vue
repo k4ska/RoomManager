@@ -5,6 +5,7 @@
     <button class="btn" :class="{ active: store.addWindowMode }" @click="toggleWindow">Lisa aken</button>
     <button class="btn" :class="{ active: store.addDoorMode }" @click="toggleDoor">Lisa uks</button>
     <button class="btn" :class="{ active: store.snapEnabled }" @click="toggleSnap">Snap on</button>
+    <button class="btn" :class="{ active: store.showMetrics }" @click="toggleMetrics">Mõõdud</button>
     <button class="btn success" @click="save">Salvesta ruum</button>
   </div>
 </template>
@@ -27,6 +28,8 @@ const toggleWindow = () => store.toggleAddWindowMode()
 const toggleDoor = () => store.toggleAddDoorMode()
 // Toggles grid snapping
 const toggleSnap = () => store.toggleSnap()
+// Toggles metrics display
+const toggleMetrics = () => store.toggleShowMetrics()
 // Navigates to the storage layout page
 const save = async () => { try { await store.saveToServer() } catch {} ; router.push('/storage') }
 </script>
