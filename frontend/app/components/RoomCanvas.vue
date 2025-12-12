@@ -5,6 +5,7 @@ import UusConfirmPopup from '~/components/uusConfirmPopup.vue'
 const store = useRoomShapeStore()
 const winConfirmRef = ref<any>(null)
 const doorConfirmRef = ref<any>(null)
+
 // metrics panel removed: no panel position or dragging state
 
 // (metrics panel removed) room area calculation and panel UI moved out
@@ -239,34 +240,36 @@ const doorsWithPoints = computed(() => {
       const b = store.points[(d.edgeIndex + 1) % store.points.length]
       if (!a || !b) return { ...d, p1: { x: 0, y: 0 }, p2: { x: 0, y: 0 }, index: idx }
       
-      // Door opening endpoints on edge
+      // Door opening endpoints on edge (p1 = L-junction start, p2 = curve end)
       const p1 = { x: a.x + (b.x - a.x) * (d.t1 ?? 0), y: a.y + (b.y - a.y) * (d.t1 ?? 0) }
       const p2 = { x: a.x + (b.x - a.x) * (d.t2 ?? 0), y: a.y + (b.y - a.y) * (d.t2 ?? 0) }
       
-      // Perpendicular direction inward (for L-junction)
+      // Perpendicular direction (always LEFT of p1->p2 direction)
       const edgePerp = getWindowPerp(p1, p2)
       const capLen = 18
-      
-      // L-junction at p1: vertical line along edge + perpendicular cap going outward
+
+      // INSIDE: L-junction goes LEFT (room direction), OUTSIDE: RIGHT (mirror)
+      const isInside = store.doorDirection === 'inside'
+      const nx = isInside ? edgePerp.nx : -edgePerp.nx
+      const ny = isInside ? edgePerp.ny : -edgePerp.ny
+
       const lJuncVertStart = p1
-      const lJuncVertEnd = { x: p2.x, y: p2.y } // extends toward p2 along the edge
-      const lJuncCapEnd = { x: p1.x + edgePerp.nx * capLen, y: p1.y + edgePerp.ny * capLen } // tip of the L
-      
-      // Curved line from lJuncCapEnd to p2 using quadratic bezier with control point pulling curve outward,
-      // but never going further outward than the L tip horizontally. Clamp endpoint to wall segment.
+      const lJuncVertEnd = p2
+      const lJuncCapEnd = { x: p1.x + nx * capLen, y: p1.y + ny * capLen }
+
+      // PERFECT MIRROR CURVE - use SAME nx/ny for control point (not edgePerp!)
       const curvePoints = []
       const midX = (lJuncCapEnd.x + p2.x) / 2
       const midY = (lJuncCapEnd.y + p2.y) / 2
-      const outward = { nx: edgePerp.nx, ny: edgePerp.ny }
       let cpOffset = 18
       const vecToMid = { x: midX - lJuncCapEnd.x, y: midY - lJuncCapEnd.y }
-      const proj = vecToMid.x * outward.nx + vecToMid.y * outward.ny
+      const proj = vecToMid.x * nx + vecToMid.y * ny  // USE nx/ny NOT edgePerp!
       if (proj + cpOffset > capLen) cpOffset = Math.max(0, capLen - proj)
-      const cpx = midX + outward.nx * cpOffset
-      const cpy = midY + outward.ny * cpOffset
-      // Clamp endpoint to wall segment
-      const clampToWall = (x, y) => {
-        // Project onto wall segment (p1 to p2)
+      const cpx = midX + nx * cpOffset  // USE nx/ny NOT edgePerp!
+      const cpy = midY + ny * cpOffset  // USE nx/ny NOT edgePerp!
+
+      // Clamp to wall
+      const clampToWall = (x: number, y: number) => {
         const dx = p2.x - p1.x, dy = p2.y - p1.y
         const len2 = dx * dx + dy * dy
         if (len2 === 0) return { x: p1.x, y: p1.y }
@@ -274,13 +277,13 @@ const doorsWithPoints = computed(() => {
         t = Math.max(0, Math.min(1, t))
         return { x: p1.x + t * dx, y: p1.y + t * dy }
       }
+
       for (let t = 0; t <= 1; t += 0.05) {
         const tt = t * t
         const mt = 1 - t
         const mtt = mt * mt
         let px = mtt * lJuncCapEnd.x + 2 * mt * t * cpx + tt * p2.x
         let py = mtt * lJuncCapEnd.y + 2 * mt * t * cpy + tt * p2.y
-        // Clamp last point to wall
         if (t === 1) {
           const clamped = clampToWall(px, py)
           px = clamped.x; py = clamped.y
@@ -289,20 +292,14 @@ const doorsWithPoints = computed(() => {
       }
       
       return { 
-        ...d, 
-        p1, 
-        p2,
-        lJuncVertStart,
-        lJuncVertEnd,
-        lJuncCapEnd,
-        curvePoints,
-        index: idx 
+        ...d, p1, p2, lJuncVertStart, lJuncVertEnd, lJuncCapEnd, curvePoints, index: idx 
       }
     })
   } catch (e) {
     return []
   }
 })
+
 
 // --- Simple draggable metrics panel state & helpers ---
 const panelPos = ref({ x: 40, y: 60 })
@@ -644,6 +641,13 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
         <div class="row">
           <label>Ruumi pindala (m²):</label>
           <div>{{ roomAreaM2.toFixed(2) }}</div>
+        </div>
+        <div class="row">
+          <label>Uks avaneb:</label>
+          <select v-model="store.doorDirection" @change="store.saveToServer()">
+            <option value="inside">Sissepoole</option>
+            <option value="outside">Välja</option>
+          </select>
         </div>
         <div class="walls-list">
           <div class="walls-header">Seinad</div>

@@ -26,14 +26,15 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
   const showShapeModal = ref(false)
   const addWindowMode = ref(false)
   const addDoorMode = ref(false)
+  const doorDirection = ref<'inside' | 'outside'>('inside')
   const showMetrics = ref(false)
   // Metrics scale: 40 pixels = 1 meter (grid square = 1m by default)
   const metricsScale = ref(40) // pixels per meter
   // Store windows as edge-relative fractions (t1,t2 in [0,1]) so they follow wall geometry
   const windows = ref<Array<{ edgeIndex: number; t1: number; t2: number }>>([])  
   const windowSelection = ref<{ edgeIndex: number; t: number } | null>(null)
-  // Store doors as edge-relative fractions (t in [0,1]) so they follow wall geometry
-  const doors = ref<Array<{ edgeIndex: number; t: number }>>([])  
+  // Store doors as edge-relative fractions (t1,t2 in [0,1]) so they follow wall geometry
+  const doors = ref<Array<{ edgeIndex: number; t1: number; t2: number }>>([])  
   const doorSelection = ref<{ edgeIndex: number; t: number } | null>(null)
   // Piirab väärtuse vahemikku [min, max]
   function clamp(v: number, min: number, max: number) {
@@ -380,6 +381,10 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     metricsScale.value = intVal
   }
 
+  function setDoorDirection(direction: 'inside' | 'outside') {  // ← LISA SEE
+    doorDirection.value = direction
+  }
+
   return {
     stage,
     shape,
@@ -414,6 +419,8 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     selectDoorPoint,
     deleteDoor,
     clearDoors,
+    doorDirection,
+    setDoorDirection,
     // Laeb salvestatud toakuju backendist (kui on)
     async loadFromServer() {
       try {
@@ -452,6 +459,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
               return { edgeIndex, t1, t2 }
             })
             doors.value = parsed
+            doorDirection.value = data.doorDirection === 'outside' ? 'outside' : 'inside'
           } catch (e) {
             // ignore invalid doors
           }
@@ -471,6 +479,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
         if (doors.value && doors.value.length) {
           payload.doors = doors.value.map(d => ({ edgeIndex: d.edgeIndex, t1: d.t1, t2: d.t2 }))
         }
+        payload.doorDirection = doorDirection.value
         await fetch(`${publicApiBase}/api/room-shape`, {
           method: 'PATCH',
           credentials: 'include',
