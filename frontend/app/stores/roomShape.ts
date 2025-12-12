@@ -34,7 +34,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
   const windows = ref<Array<{ edgeIndex: number; t1: number; t2: number }>>([])  
   const windowSelection = ref<{ edgeIndex: number; t: number } | null>(null)
   // Store doors as edge-relative fractions (t1,t2 in [0,1]) so they follow wall geometry
-  const doors = ref<Array<{ edgeIndex: number; t1: number; t2: number }>>([])  
+ const doors = ref<Array<{ edgeIndex: number; t1: number; t2: number; direction?: 'inside' | 'outside' }>>([])    
   const doorSelection = ref<{ edgeIndex: number; t: number } | null>(null)
   // Piirab väärtuse vahemikku [min, max]
   function clamp(v: number, min: number, max: number) {
@@ -259,7 +259,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
         }
         const t1 = projectToEdge(p1, newA, newB)
         const t2 = projectToEdge(p2, newA, newB)
-        return { edgeIndex: bestEdge, t1: Math.min(t1, t2), t2: Math.max(t1, t2) }
+        return { edgeIndex: bestEdge, t1: Math.min(t1, t2), t2: Math.max(t1, t2), direction: d.direction }
       } else {
         return { edgeIndex: bestEdge, t: bestT }
       }
@@ -345,7 +345,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
       const t2 = t
       const low = Math.min(t1, t2)
       const high = Math.max(t1, t2)
-      doors.value.push({ edgeIndex, t1: low, t2: high })
+      doors.value.push({ edgeIndex, t1: low, t2: high, direction: doorDirection.value })
       doorSelection.value = null
       return
     }
@@ -456,7 +456,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
               const edgeIndex = Number.isFinite(d.edgeIndex) ? Math.max(0, Math.floor(d.edgeIndex)) : 0
               const t1 = typeof d.t1 === 'number' ? Math.max(0, Math.min(1, d.t1)) : (typeof d.t === 'number' ? Math.max(0, Math.min(1, d.t)) : 0)
               const t2 = typeof d.t2 === 'number' ? Math.max(0, Math.min(1, d.t2)) : t1
-              return { edgeIndex, t1, t2 }
+              return { edgeIndex, t1, t2, direction: d.direction === 'outside' ? 'outside' : 'inside' }
             })
             doors.value = parsed
             doorDirection.value = data.doorDirection === 'outside' ? 'outside' : 'inside'
@@ -477,7 +477,12 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
         }
         // include doors as edge-relative fractions so backend can persist them
         if (doors.value && doors.value.length) {
-          payload.doors = doors.value.map(d => ({ edgeIndex: d.edgeIndex, t1: d.t1, t2: d.t2 }))
+          payload.doors = doors.value.map(d => ({ 
+            edgeIndex: d.edgeIndex, 
+            t1: d.t1, 
+            t2: d.t2,
+            direction: d.direction || doorDirection.value
+          }))
         }
         payload.doorDirection = doorDirection.value
         await fetch(`${publicApiBase}/api/room-shape`, {

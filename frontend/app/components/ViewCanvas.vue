@@ -59,7 +59,7 @@ const doorsWithPoints = computed(() => {
       const capLen = 18
 
       // SIIN: arvesta suunda
-      const isInside = room.doorDirection === 'inside'
+      const isInside = (d.direction || room.doorDirection) === 'inside'
       const nx = isInside ? edgePerp.nx : -edgePerp.nx
       const ny = isInside ? edgePerp.ny : -edgePerp.ny
 
