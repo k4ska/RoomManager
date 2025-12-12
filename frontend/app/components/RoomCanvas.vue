@@ -645,7 +645,7 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
         <div class="row">
           <label>Uks avaneb:</label>
           <select v-model="store.doorDirection" @change="store.saveToServer()">
-            <option value="inside">Sissepoole</option>
+            <option value="inside">Sisse</option>
             <option value="outside">Välja</option>
           </select>
         </div>
