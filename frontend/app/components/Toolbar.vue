@@ -24,13 +24,14 @@ const storage = useStorageStore()
 // Resets the room shape and clears storage
 const newRoom = () => { store.resetShape(); storage.clear() }
 
-const setMode = (mode: 'addPoint' | 'addWindow' | 'addDoor') => {
+const setMode = (mode: 'addPoint' | 'addWindow' | 'addDoor' | 'none') => {
   // Lülita KÕIK TÄPSELT VÄLJA
   store.addPointMode = false
   store.addWindowMode = false  
   store.addDoorMode = false
   
   // Lülita ainult VAJALIK SISSE
+  if (mode === 'none') return  // KÕIK JÄEVAD VÄLJA ✅
   if (mode === 'addPoint') store.addPointMode = true
   else if (mode === 'addWindow') store.addWindowMode = true
   else if (mode === 'addDoor') store.addDoorMode = true
@@ -43,9 +44,9 @@ const toggleMetrics = () => store.toggleShowMetrics()
 // Navigates to the storage layout page
 const save = async () => { try { await store.saveToServer() } catch {} ; router.push('/storage') }
 
-const toggleAdd = () => setMode('addPoint')
-const toggleWindow = () => setMode('addWindow') 
-const toggleDoor = () => setMode('addDoor')
+const toggleAdd = () => setMode(store.addPointMode ? 'none' : 'addPoint')
+const toggleWindow = () => setMode(store.addWindowMode ? 'none' : 'addWindow') 
+const toggleDoor = () => setMode(store.addDoorMode ? 'none' : 'addDoor')
 
 </script>
 
