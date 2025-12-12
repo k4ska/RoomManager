@@ -150,7 +150,7 @@ const doorsWithPoints = computed(() => {
       const capLen = 18
 
       // INSIDE: LEFT (room), OUTSIDE: RIGHT (mirror)
-      const isInside = room.doorDirection === 'inside'
+      const isInside = (d.direction || room.doorDirection) === 'inside'
       const nx = isInside ? edgePerp.nx : -edgePerp.nx
       const ny = isInside ? edgePerp.ny : -edgePerp.ny
 

@@ -248,8 +248,7 @@ const doorsWithPoints = computed(() => {
       const edgePerp = getWindowPerp(p1, p2)
       const capLen = 18
 
-      // INSIDE: L-junction goes LEFT (room direction), OUTSIDE: RIGHT (mirror)
-      const isInside = store.doorDirection === 'inside'
+      const isInside = (d.direction || store.doorDirection) === 'inside'
       const nx = isInside ? edgePerp.nx : -edgePerp.nx
       const ny = isInside ? edgePerp.ny : -edgePerp.ny
 
@@ -336,6 +335,16 @@ const roomAreaM2 = computed(() => {
   area = Math.abs(area) / 2
   return area / (store.metricsScale * store.metricsScale)
 })
+
+function onDoorDirectionChange(index: number, event: Event) {
+  const target = event.target as HTMLSelectElement
+  const newDir = target.value as 'inside' | 'outside'
+  
+  const door = { ...store.doors[index], direction: newDir }
+  store.doors.splice(index, 1, door)
+  
+  store.saveToServer()
+}
 
 function getWallPixels(edgeIndex: number) {
   const a = store.points[edgeIndex]
@@ -643,11 +652,23 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
           <div>{{ roomAreaM2.toFixed(2) }}</div>
         </div>
         <div class="row">
-          <label>Uks avaneb:</label>
+          <label>Uute uste suund:</label>
           <select v-model="store.doorDirection" @change="store.saveToServer()">
             <option value="inside">Sisse</option>
             <option value="outside">Välja</option>
           </select>
+        </div>
+
+        <!-- UKSED ERALDI -->
+        <div class="doors-list">
+          <div class="doors-header">Uksed</div>
+          <div v-for="(door, i) in store.doors" :key="'d' + i" class="door-row">
+            <div class="door-label">U{{ i + 1 }}</div>
+            <select @change="onDoorDirectionChange(i, $event)">
+              <option value="inside" :selected="(door.direction || 'inside') === 'inside'">Sisse</option>
+              <option value="outside" :selected="door.direction === 'outside'">Välja</option>
+            </select>
+          </div>
         </div>
         <div class="walls-list">
           <div class="walls-header">Seinad</div>
@@ -699,5 +720,9 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
 .wall-label{width:30px;color:#fbbf24}
 .wall-px{width:70px;color:#cbd5e1;font-size:11px}
 .wall-meter{flex:1;padding:4px;border-radius:4px;border:1px solid rgba(251,191,36,0.15);background:rgba(51,65,85,0.6);color:#fbbf24;text-align:right}
+.doors-list{max-height:120px;overflow:auto;border-top:1px dashed rgba(255,255,255,0.03);padding-top:8px;margin-top:8px}
+.doors-header{color:#fbbf24;font-weight:700;margin-bottom:6px}
+.door-row{display:flex;gap:6px;align-items:center;padding:4px 0}
+.door-label{width:30px;color:#fbbf24}
 </style>
 
