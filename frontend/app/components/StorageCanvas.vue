@@ -145,14 +145,19 @@ const doorsWithPoints = computed(() => {
       const p1 = { x: a.x + (b.x - a.x) * (d.t1 ?? 0), y: a.y + (b.y - a.y) * (d.t1 ?? 0) }
       const p2 = { x: a.x + (b.x - a.x) * (d.t2 ?? 0), y: a.y + (b.y - a.y) * (d.t2 ?? 0) }
       
-      // Perpendicular direction inward (for L-junction)
+      // Perpendicular direction (LEFT of p1->p2)
       const edgePerp = getWindowPerp(p1, p2)
       const capLen = 18
-      
-      // L-junction at p1: vertical line along edge + perpendicular cap going outward
+
+      // INSIDE: LEFT (room), OUTSIDE: RIGHT (mirror)
+      const isInside = room.doorDirection === 'inside'
+      const nx = isInside ? edgePerp.nx : -edgePerp.nx
+      const ny = isInside ? edgePerp.ny : -edgePerp.ny
+
       const lJuncVertStart = p1
-      const lJuncVertEnd = { x: p2.x, y: p2.y } // extends toward p2 along the edge
-      const lJuncCapEnd = { x: p1.x + edgePerp.nx * capLen, y: p1.y + edgePerp.ny * capLen } // tip of the L
+      const lJuncVertEnd = { x: p2.x, y: p2.y }
+      const lJuncCapEnd = { x: p1.x + nx * capLen, y: p1.y + ny * capLen }
+
       
       // Curved line from lJuncCapEnd to p2 using quadratic bezier with control point pulling curve outward,
       // but never going further outward than the L tip horizontally. Clamp endpoint to wall segment.
@@ -162,10 +167,10 @@ const doorsWithPoints = computed(() => {
       const outward = { nx: edgePerp.nx, ny: edgePerp.ny }
       let cpOffset = 18
       const vecToMid = { x: midX - lJuncCapEnd.x, y: midY - lJuncCapEnd.y }
-      const proj = vecToMid.x * outward.nx + vecToMid.y * outward.ny
-      if (proj + cpOffset > capLen) cpOffset = Math.max(0, capLen - proj)
-      const cpx = midX + outward.nx * cpOffset
-      const cpy = midY + outward.ny * cpOffset
+      const proj = vecToMid.x * nx + vecToMid.y * ny      // ← edgePerp → nx/ny
+      const cpx = midX + nx * cpOffset                    // ← edgePerp → nx
+      const cpy = midY + ny * cpOffset                    // ← edgePerp → ny
+
       // Clamp endpoint to wall segment
       const clampToWall = (x, y) => {
         // Project onto wall segment (p1 to p2)
