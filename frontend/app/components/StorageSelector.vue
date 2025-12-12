@@ -40,19 +40,34 @@
             @dragover.prevent
             @drop.prevent="onDrop"
           >
-            <input ref="fileInput" type="file" class="hidden" accept="image/*" @change="onFileChange">
+                  <input ref="fileInput" type="file" class="hidden" accept="image/*" @change="onFileChange">
+                  <input ref="captureInput" type="file" class="hidden" accept="image/*" capture="environment" @change="onFileChange">
             <div class="drop-inner" @click="pickFile">
               <div v-if="newLogo" class="preview">
                 <img :src="newLogo" alt="Logo eelvaade">
                 <div class="file-name">{{ logoName }}</div>
               </div>
               <div v-else class="placeholder">
-                Lohista pilt siia või klõpsa „Vali fail”.
+                Klõpsa „Vali fail” või tee Kaameraga pilt.
               </div>
-              <UButton size="xs" variant="outline" class="file-btn" @click.stop="pickFile">Vali fail</UButton>
+                    <div style="display:flex;gap:8px;align-items:center">
+                      <UButton size="xs" variant="outline" class="file-btn" @click.stop="pickFile">Vali fail</UButton>
+                      <UButton size="xs" variant="outline" class="file-btn" @click.stop="openCamera">Kaamera</UButton>
+                    </div>
             </div>
           </div>
           <UAlert v-if="logoError" color="error" title="Lisa pildifail, mida kasutada ikoonina." />
+
+          <!-- Camera overlay for live capture -->
+          <div v-if="showCamera" class="camera-overlay">
+            <div class="camera-inner">
+              <video ref="videoRef" class="camera-video" autoplay playsinline muted></video>
+              <div class="camera-controls">
+                <UButton size="sm" color="success" @click="captureFromCamera">Tee pilt</UButton>
+                <UButton size="sm" variant="ghost" @click="stopCamera">Tühista</UButton>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </template>
@@ -66,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch, nextTick } from 'vue'
 import type { StorageType } from '~/stores/storageStore'
 import { useStorageStore } from '~/stores/storageStore'
 import { useRoomShapeStore } from '~/stores/roomShape'
@@ -94,8 +109,13 @@ const newName = ref('')
 const newLogo = ref<string | null>(null)
 const logoName = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
+const captureInput = ref<HTMLInputElement | null>(null)
 const nameError = ref(false)
 const logoError = ref(false)
+const showCamera = ref(false)
+const videoRef = ref<HTMLVideoElement | null>(null)
+const canvasRef = ref<HTMLCanvasElement | null>(null)
+let streamRef: MediaStream | null = null
 
 // Load custom items from localStorage on init
 function loadCustomItems() {
@@ -125,7 +145,7 @@ onMounted(() => {
 
 watch(newName, (v) => { if (v.trim()) nameError.value = false })
 watch(newLogo, (v) => { if (v) logoError.value = false })
-watch(openModal, (v) => { if (!v) resetForm() })
+watch(openModal, (v) => { if (!v) { resetForm(); stopCamera() } })
 watch(customItems, (v) => { saveCustomItemsToStorage() }, { deep: true })
 
 function resetForm() {
@@ -221,6 +241,58 @@ async function quickAdd(item: SelectorItem) {
 
 function pickFile() {
   fileInput.value?.click()
+}
+
+async function openCamera() {
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    try {
+      streamRef = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      showCamera.value = true
+      await nextTick()
+      if (videoRef.value) {
+        videoRef.value.srcObject = streamRef
+        await videoRef.value.play()
+      }
+      return
+    } catch (e) {
+      // fallback to file capture input below
+    }
+  }
+  // mobile fallback: trigger capture-enabled file input
+  captureInput.value?.click()
+}
+
+function stopCamera() {
+  try {
+    if (streamRef) {
+      streamRef.getTracks().forEach(t => t.stop())
+      streamRef = null
+    }
+  } catch (e) {}
+  showCamera.value = false
+  if (videoRef.value) videoRef.value.srcObject = null
+}
+
+function captureFromCamera() {
+  if (!videoRef.value) return
+  const v = videoRef.value
+  const w = v.videoWidth || 640
+  const h = v.videoHeight || 480
+  if (!canvasRef.value) {
+    const c = document.createElement('canvas')
+    c.width = w; c.height = h
+    canvasRef.value = c
+  } else {
+    canvasRef.value.width = w; canvasRef.value.height = h
+  }
+  const ctx = canvasRef.value.getContext('2d')
+  if (!ctx) return
+  ctx.drawImage(v, 0, 0, w, h)
+  const data = canvasRef.value.toDataURL('image/png')
+  newLogo.value = data
+  logoName.value = `camera-${Date.now()}.png`
+  logoError.value = false
+  stopCamera()
 }
 
 function onFileChange(e: Event) {
@@ -383,5 +455,29 @@ h3 {
 }
 .spacer { flex: 1; }
 .hidden { display: none; }
+
+/* Camera overlay styles */
+.camera-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2,6,23,0.6);
+  z-index: 60;
+  border-radius: 10px;
+}
+.camera-inner {
+  background: #0b1222;
+  border: 1px solid #334155;
+  padding: 12px;
+  border-radius: 8px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  align-items:center;
+}
+.camera-video { width:320px; height:240px; background:#000; border-radius:6px; object-fit:cover }
+.camera-controls { display:flex; gap:8px }
 </style>
 
