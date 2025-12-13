@@ -12,7 +12,7 @@
             
             <div class="qty-wrap">
               <UButton size="xs" variant="outline" @click="dec(i)">-</UButton>
-              <UInput v-model.number="row.quantity" type="number" class="qty" />
+              <UInput v-model.number="row.quantity" type="number" class="qty" :min="1" />
               <UButton size="xs" variant="outline" @click="inc(i)">+</UButton>
             </div>
 
@@ -20,7 +20,13 @@
               <div class="inuse-label">Kasutuses</div>
               <div class="inuse-wrap">
                 <UButton size="xs" variant="outline" @click="decInUse(i)">-</UButton>
-                <UInput v-model.number="row.inUse" type="number" class="qty" />
+                <UInput 
+                  v-model.number="row.inUse" 
+                  type="number" 
+                  class="qty"
+                  :min="0"
+                  :max="row.quantity || 1"
+                />
                 <UButton size="xs" variant="outline" @click="incInUse(i)">+</UButton>
               </div>
             </div>
@@ -100,18 +106,19 @@ const decInUse = (i: number) => {
 
 watch(rows, (newRows) => {
   newRows.forEach((row, i) => {
-    if (row.inUse !== undefined) {
-      store.updateItemUsage(unit.value!.id, i, row.inUse)
+    if (row.inUse !== undefined && unit.value) {
+      row.inUse = Math.max(0, Math.min(row.inUse || 0, row.quantity || 1))
+      store.updateItemUsage(unit.value.id, i, row.inUse)
     }
   })
 }, { deep: true })
 
 watch(unit, (u) => {
-  unitName.value = (u as any).name || ''
-  rows.value = (u as any).contents?.map((x: any) => ({ 
-    ...x, 
-    inUse: x.inUse || 0,
-    inUseCount: x.inUseCount || 0 
+  unitName.value = (u as any)?.name || ''
+  rows.value = (u as any)?.contents?.map((x: any) => ({ 
+    name: x.name, 
+    quantity: x.quantity, 
+    inUse: x.inUse || 0 
   })) || []
 }, { immediate: true })
 
@@ -164,7 +171,6 @@ const save = async () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* EEMALDATUD: justify-content ja height */
 }
 
 .inuse-label {
