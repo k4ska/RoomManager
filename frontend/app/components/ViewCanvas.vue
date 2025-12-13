@@ -13,6 +13,7 @@ const EMOJI_SIZE = 20
 const imageCache = new Map<string, HTMLImageElement | null>()
 const highlightSet = computed(() => new Set(props.highlightIds ?? []))
 const inUseNotification = ref('')
+const notificationUnitIds = ref<Set<number>>(new Set())
 
 const updateInUseNotification = () => {
   const unitsWithInUse = storage.items.filter(item => {
@@ -20,8 +21,11 @@ const updateInUseNotification = () => {
     return contents.some(content => (content.inUse || 0) > 0)
   })
 
+  notificationUnitIds.value.clear()
+
   if (unitsWithInUse.length > 0) {
     const unitInfo = unitsWithInUse.slice(0, 3).map(item => {
+      notificationUnitIds.value.add(item.id)
       const contents = item.contents || []
       const inUseItems = contents.filter(content => (content.inUse || 0) > 0)
       return inUseItems.slice(0, 2).map(content => {
@@ -34,9 +38,17 @@ const updateInUseNotification = () => {
   }
 }
 
+const handleNotificationClick = () => {
+  const firstUnitId = Array.from(notificationUnitIds.value)[0]
+  if (firstUnitId) {
+    emit('select', firstUnitId)
+  }
+}
+
 watch(() => storage.items, updateInUseNotification, { deep: true })
 onMounted(updateInUseNotification)
 
+// ... ülejäänud funktsioonid jäävad samaks (getWindowPerp, capPointsAt, jne) ...
 function getWindowPerp(p1: {x:number,y:number}, p2: {x:number,y:number}) {
   const dx = p2.x - p1.x
   const dy = p2.y - p1.y
@@ -163,7 +175,11 @@ function isHighlighted(id: number) {
 
 <template>
   <div class="canvas-wrap">
-    <div v-if="inUseNotification" class="in-use-notification">
+    <div 
+      v-if="inUseNotification" 
+      class="in-use-notification"
+      @click="handleNotificationClick"
+    >
       ⚠️ {{ inUseNotification }}
     </div>
     
@@ -171,6 +187,7 @@ function isHighlighted(id: number) {
         width: room.stage.width,
         height: room.stage.height
       }">
+      <!-- ... sama canvas sisu ... -->
       <v-layer>
         <v-rect :config="{
           x: 0,
@@ -330,6 +347,13 @@ function isHighlighted(id: number) {
   max-width: 300px;
   backdrop-filter: blur(10px);
   white-space: pre-line;
+  cursor: pointer; /* ✅ Klikitav kursor */
+  user-select: none;
+}
+
+.in-use-notification:hover {
+  background: rgba(220, 38, 38, 0.95);
+  transform: scale(1.02);
 }
 
 .canvas-wrap :deep(.in-use-notification) {
