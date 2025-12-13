@@ -72,8 +72,8 @@ onMounted(async () => {
   ;(window as any).__rm_setSelected = setSelected
   ;(window as any).__rm_setSelectedIds = setSelectedIds
   try {
-    await shape.loadFromServer()
-    await store.ensureRoom()
+    const roomId = await store.ensureRoom()
+    await shape.loadFromServer(roomId)
     await store.loadUnits()
   } catch {}
 })
@@ -132,9 +132,8 @@ async function removeAll() {
 // Salvesta ainult (toa kuju + paigutus). Jää samale lehele
 async function saveOnly(): Promise<boolean> {
   try {
-    await shape.saveToServer()
-    // Ensure room exists and refresh local id state
-    await store.ensureRoom()
+    const roomId = await store.ensureRoom()
+    await shape.saveToServer(roomId)
     const ok = await store.saveToServer()
     if (!ok) { console.error('save failed'); return false }
     // Sync from server to reflect canonical ids after save

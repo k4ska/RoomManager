@@ -29,6 +29,7 @@
         </p>
       </div>
       <div class="actions">
+        <NuxtLink class="btn secondary" to="/rooms">Toad</NuxtLink>
         <NuxtLink class="btn" to="/storage">Muuda paigutust</NuxtLink>
       </div>
     </header>
@@ -149,8 +150,8 @@ function pickSuggestion(option: Suggestion) {
 
 onMounted(async () => {
   try {
-    await shape.loadFromServer()
-    await store.ensureRoom()
+    const roomId = await store.ensureRoom()
+    await shape.loadFromServer(roomId)
     await store.loadUnits()
   } catch {}
 })
@@ -193,6 +194,11 @@ onMounted(async () => {
 .btn:hover { 
   background: var(--accent-hover); 
 }
+.btn.secondary {
+  background: rgba(148,163,184,0.15);
+  color: var(--text);
+}
+.btn.secondary:hover { background: rgba(148,163,184,0.25); }
 .btn:disabled { 
   opacity: .5; 
   cursor: not-allowed; 

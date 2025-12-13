@@ -23,8 +23,20 @@ import Toolbar from '~/components/Toolbar.vue'
 import RoomCanvas from '~/components/RoomCanvas.vue'
 import { onMounted, onBeforeUnmount } from 'vue'
 import { useRoomShapeStore } from '~/stores/roomShape'
+import { useStorageStore } from '~/stores/storageStore'
 
 const shape = useRoomShapeStore()
-onMounted(() => { shape.loadFromServer().catch(() => {}) })
-onBeforeUnmount(() => { shape.saveToServer().catch(() => {}) })
+const store = useStorageStore()
+onMounted(async () => {
+  try {
+    const roomId = await store.ensureRoom()
+    await shape.loadFromServer(roomId)
+  } catch {}
+})
+onBeforeUnmount(async () => {
+  try {
+    const roomId = await store.ensureRoom()
+    await shape.saveToServer(roomId)
+  } catch {}
+})
 </script>

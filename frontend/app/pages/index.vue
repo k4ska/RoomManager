@@ -17,7 +17,7 @@
 </template>
 
 <script setup lang="ts">
-const goView = () => navigateTo('/view')
+const goView = () => navigateTo('/rooms')
 </script>
 
 <style scoped>

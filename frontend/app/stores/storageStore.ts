@@ -18,6 +18,13 @@ export interface StorageUnit {
   contents: StoredObject[]
 }
 
+export interface RoomSummary {
+  id: number
+  name: string
+  createdAt?: string
+  updatedAt?: string
+}
+
 let idSeq = 1
 
 // Use a universaalne ruut kõigile üksustele
@@ -48,10 +55,16 @@ const META: Record<StorageType, { w: number; h: number; emoji: string }> = {
 export const useStorageStore = defineStore('storage', () => {
   const items = ref<StorageUnit[]>([])
   const currentRoomId = ref<number | null>(null)
+  const rooms = ref<RoomSummary[]>([])
 
-  const runtime = (useRuntimeConfig?.() as any)
-  const publicCfg = runtime.public
-  const publicApiBase = publicCfg.apiBase
+  function apiBase() {
+    try {
+      const runtime = useRuntimeConfig()
+      return (runtime as any)?.public?.apiBase || process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
+    } catch {
+      return process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
+    }
+  }
 
   // Teisendab backendist tulnud üksuse ja esemed kohalikuks StorageUnit-iks
   function mapUnit(u: any): StorageUnit {
@@ -72,24 +85,49 @@ export const useStorageStore = defineStore('storage', () => {
   // Veendub, et kasutajal on tuba; vajadusel loob uue
   async function ensureRoom(): Promise<number> {
     if (currentRoomId.value) return currentRoomId.value
-    const res = await fetch(`${publicApiBase}/api/rooms`, { credentials: 'include' })
-    const data = await res.json()
-    if (data?.ok && data.rooms?.length) {
-      currentRoomId.value = data.rooms[0].id
+    await fetchRooms()
+    if (rooms.value.length) {
+      currentRoomId.value = rooms.value[0].id
       return currentRoomId.value
     }
-    const create = await fetch(`${publicApiBase}/api/rooms`, {
-      method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Minu tuba' })
+    const created = await createRoom('Minu tuba')
+    return created
+  }
+
+  async function fetchRooms() {
+    try {
+      const res = await fetch(`${apiBase()}/api/rooms`, { credentials: 'include' })
+      const data = await res.json()
+      if (data?.ok && Array.isArray(data.rooms)) rooms.value = data.rooms
+    } catch {}
+  }
+
+  async function createRoom(name?: string): Promise<number> {
+    const res = await fetch(`${apiBase()}/api/rooms`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: name || 'Uus tuba' })
     })
-    const payload = await create.json()
-    currentRoomId.value = payload?.room?.id ?? null
-    return currentRoomId.value as number
+    const data = await res.json()
+    const id = data?.room?.id as number | undefined
+    if (data?.ok && id) {
+      await fetchRooms()
+      currentRoomId.value = id
+      items.value = []
+      return id
+    }
+    return await ensureRoom()
+  }
+
+  function setCurrentRoom(id: number) {
+    currentRoomId.value = id
   }
 
   // Laeb aktiivse toa üksused backendist
   async function loadUnits() {
     const roomId = await ensureRoom()
-    const res = await fetch(`${publicApiBase}/api/rooms/${roomId}/units`, { credentials: 'include' })
+    const res = await fetch(`${apiBase()}/api/rooms/${roomId}/units`, { credentials: 'include' })
     const data = await res.json()
     if (data?.ok && Array.isArray(data.units)) {
       items.value = data.units.map(mapUnit)
@@ -138,7 +176,7 @@ export const useStorageStore = defineStore('storage', () => {
   async function deleteUnit(id: number) {
   items.value = items.value.filter(i => i.id !== id)
   try { 
-    await fetch(`${publicApiBase}/api/units/${id}`, { 
+    await fetch(`${apiBase()}/api/units/${id}`, { 
       method: 'DELETE', 
       credentials: 'include' 
     }) 
@@ -178,6 +216,7 @@ export const useStorageStore = defineStore('storage', () => {
   // Salvestab praeguse üksuste pildi backendis (turvaline täielik asendus)
   async function saveToServer(): Promise<boolean> {
     try {
+      const roomId = await ensureRoom()
       const payload = { units: items.value.map(u => ({
         type: u.type,
         x: Math.round(u.x),
@@ -189,8 +228,8 @@ export const useStorageStore = defineStore('storage', () => {
         name: u.name,
         contents: (u.contents || []).map(c => ({ name: c.name, quantity: Math.max(1, Math.round(c.quantity || 1)) }))
       })) }
-      const res = await fetch(`${publicApiBase}/api/layout`, {
-        method: 'POST',
+      const res = await fetch(`${apiBase()}/api/rooms/${roomId}/layout`, {
+        method: 'PUT',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload)
@@ -210,8 +249,8 @@ export const useStorageStore = defineStore('storage', () => {
   }
 
   return {
-    items, currentRoomId,
-    ensureRoom, loadUnits,
+    items, currentRoomId, rooms,
+    ensureRoom, loadUnits, fetchRooms, createRoom, setCurrentRoom,
     addUnit, updateUnit,
     updatePos, removeUnit,
     clear, setContents,
