@@ -12,7 +12,7 @@
       <div v-if="loading" class="info">Laadin tube...</div>
       <div v-else-if="error" class="info error">{{ error }}</div>
       <div v-else-if="rooms.length === 0" class="info">Ühtegi tuba pole. Lisa esimene!</div>
-      <article v-for="room in rooms" :key="room.id" class="card">
+      <article v-for="room in rooms" :key="room.id" class="card" @click="openRoom(room.id)">
         <div class="name">{{ room.name }}</div>
         <div class="meta">ID {{ room.id }}</div>
       </article>
@@ -22,9 +22,11 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useStorageStore } from '~/stores/storageStore'
 
 const store = useStorageStore()
+const router = useRouter()
 const loading = ref(false)
 const error = ref('')
 
@@ -50,13 +52,18 @@ async function createRoom() {
     await store.fetchRooms()
     if (id) {
       store.setCurrentRoom(id)
-      navigateTo('/editor')
+      router.push('/editor')
     }
   } catch {
     error.value = 'Uue ruumi loomine ebaõnnestus.'
   } finally {
     loading.value = false
   }
+}
+
+function openRoom(id: number) {
+  store.setCurrentRoom(id)
+  router.push('/view')
 }
 
 onMounted(fetchRooms)
