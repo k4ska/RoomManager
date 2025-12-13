@@ -61,6 +61,32 @@ namespace backend.Controllers
             return Ok(new { ok = true, roomId = room.Id });
         }
 
+        // GET /api/rooms/{roomId}/shape (konkreetse toa kuju toomine)
+        [HttpGet("rooms/{roomId:int}/shape")]
+        public async Task<IActionResult> GetRoomShapeForRoom(int roomId)
+        {
+            var uid = CurrentUserId(); if (uid is null) return Unauthorized(new { ok = false, error = "Unauthorized" });
+            var room = await _db.Rooms.FirstOrDefaultAsync(r => r.Id == roomId && r.UserId == uid.Value);
+            if (room == null) return NotFound(new { ok = false, error = "Room not found" });
+            var shape = string.IsNullOrWhiteSpace(room.Shape) ? null : System.Text.Json.JsonSerializer.Deserialize<object>(room.Shape);
+            return Ok(new { ok = true, shape, roomId = room.Id });
+        }
+
+        // PATCH /api/rooms/{roomId}/shape (salvesta konkreetse toa kuju)
+        [HttpPatch("rooms/{roomId:int}/shape")]
+        public async Task<IActionResult> PatchRoomShapeForRoom(int roomId, [FromBody] ShapeDto dto)
+        {
+            var uid = CurrentUserId(); if (uid is null) return Unauthorized(new { ok = false, error = "Unauthorized" });
+            if (dto?.points is null) return BadRequest(new { ok = false, error = "points required" });
+            var room = await _db.Rooms.FirstOrDefaultAsync(r => r.Id == roomId && r.UserId == uid.Value);
+            if (room == null) return NotFound(new { ok = false, error = "Room not found" });
+            var shapeObj = new { points = dto.points, windows = dto.windows, doors = dto.doors };
+            room.Shape = System.Text.Json.JsonSerializer.Serialize(shapeObj);
+            room.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+            return Ok(new { ok = true, roomId = room.Id });
+        }
+
         // GET /api/rooms (kasutaja toad)
         [HttpGet("rooms")]
         public async Task<IActionResult> GetRooms()
