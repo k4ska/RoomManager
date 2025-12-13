@@ -29,7 +29,15 @@ const updateInUseNotification = () => {
       const contents = item.contents || []
       const inUseItems = contents.filter(content => (content.inUse || 0) > 0)
       return inUseItems.slice(0, 2).map(content => {
-        return `${item.name || 'Mööbel'}: tagasta ${content.name || 'ese'} (${content.inUse || 0})`
+        let emoji = '📦'
+        if (item.emoji) {
+          if (isImageEmoji(item.emoji)) {
+            emoji = '🖼️'
+          } else {
+            emoji = item.emoji
+          }
+        }
+        return `${emoji} ${item.name || 'Mööbel'}: tagasta ${content.name || 'ese'} (${content.inUse || 0})`
       }).join('\n')
     }).flat().join('\n')
     inUseNotification.value = unitInfo
@@ -37,7 +45,6 @@ const updateInUseNotification = () => {
     inUseNotification.value = ''
   }
 }
-
 const handleNotificationClick = () => {
   const firstUnitId = Array.from(notificationUnitIds.value)[0]
   if (firstUnitId) {
@@ -184,9 +191,9 @@ function isHighlighted(id: number) {
       class="in-use-notification"
       @click="handleNotificationClick"
     >
-      ⚠️ {{ inUseNotification }}
+      {{ inUseNotification }}
     </div>
-    
+
     <v-stage :config="{
         width: room.stage.width,
         height: room.stage.height
