@@ -12,8 +12,7 @@ const hoverId = ref<number | null>(null)
 const EMOJI_SIZE = 20
 const imageCache = new Map<string, HTMLImageElement | null>()
 const highlightSet = computed(() => new Set(props.highlightIds ?? []))
-const inUseNotification = ref('')
-const notificationUnitIds = ref<Set<number>>(new Set())
+const inUseNotifications = ref<{id: number, text: string}[]>([])
 
 const updateInUseNotification = () => {
   const unitsWithInUse = storage.items.filter(item => {
@@ -21,41 +20,33 @@ const updateInUseNotification = () => {
     return contents.some(content => (content.inUse || 0) > 0)
   })
 
-  notificationUnitIds.value.clear()
-
-  if (unitsWithInUse.length > 0) {
-    const unitInfo = unitsWithInUse.slice(0, 3).map(item => {
-      notificationUnitIds.value.add(item.id)
-      const contents = item.contents || []
-      const inUseItems = contents.filter(content => (content.inUse || 0) > 0)
-      return inUseItems.slice(0, 2).map(content => {
-        let emoji = '📦'
-        if (item.emoji) {
-          if (isImageEmoji(item.emoji)) {
-            emoji = '🖼️'
-          } else {
-            emoji = item.emoji
-          }
-        }
-        return `${emoji} ${item.name || 'Mööbel'}: tagasta ${content.name || 'ese'} (${content.inUse || 0})`
-      }).join('\n')
-    }).flat().join('\n')
-    inUseNotification.value = unitInfo
-  } else {
-    inUseNotification.value = ''
-  }
+  const notifications = unitsWithInUse.slice(0, 3).map(item => {
+    const contents = item.contents || []
+    const inUseItems = contents.filter(content => (content.inUse || 0) > 0)
+    let emoji = '📦'
+    if (item.emoji) {
+      if (isImageEmoji(item.emoji)) {
+        emoji = '🖼️'
+      } else {
+        emoji = item.emoji
+      }
+    }
+    const text = `${emoji} ${item.name || 'Mööbel'}\n${inUseItems.slice(0, 2).map(content => 
+      `  tagasta ${content.name || 'ese'} (${content.inUse || 0})`
+    ).join('\n')}`
+    return { id: item.id, text }
+  })
+  
+  inUseNotifications.value = notifications
 }
-const handleNotificationClick = () => {
-  const firstUnitId = Array.from(notificationUnitIds.value)[0]
-  if (firstUnitId) {
-    emit('select', firstUnitId)
-  }
+
+const handleNotificationClick = (unitId: number) => {
+  emit('select', unitId)
 }
 
 watch(() => storage.items, updateInUseNotification, { deep: true })
 onMounted(updateInUseNotification)
 
-// ... ülejäänud funktsioonid jäävad samaks (getWindowPerp, capPointsAt, jne) ...
 function getWindowPerp(p1: {x:number,y:number}, p2: {x:number,y:number}) {
   const dx = p2.x - p1.x
   const dy = p2.y - p1.y
@@ -187,18 +178,19 @@ function isHighlighted(id: number) {
 <template>
   <div class="canvas-wrap">
     <div 
-      v-if="inUseNotification" 
+      v-for="(notif, index) in inUseNotifications" 
+      :key="notif.id"
       class="in-use-notification"
-      @click="handleNotificationClick"
+      :style="{ '--notif-index': index }"
+      @click="handleNotificationClick(notif.id)"
     >
-      {{ inUseNotification }}
+      {{ notif.text }}
     </div>
 
     <v-stage :config="{
         width: room.stage.width,
         height: room.stage.height
       }">
-      <!-- ... sama canvas sisu ... -->
       <v-layer>
         <v-rect :config="{
           x: 0,
@@ -345,7 +337,7 @@ function isHighlighted(id: number) {
 
 .in-use-notification {
   position: absolute;
-  top: 16px;
+  top: calc(16px + var(--notif-index, 0) * 90px);
   right: 16px;
   background: rgba(234, 179, 8, 0.95);
   color: white;
@@ -358,7 +350,7 @@ function isHighlighted(id: number) {
   max-width: 300px;
   backdrop-filter: blur(10px);
   white-space: pre-line;
-  cursor: pointer; /* ✅ Klikitav kursor */
+  cursor: pointer;
   user-select: none;
 }
 
