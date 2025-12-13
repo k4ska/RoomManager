@@ -336,13 +336,13 @@ function isHighlighted(id: number) {
   position: absolute;
   top: 16px;
   right: 16px;
-  background: rgba(239, 68, 68, 0.95);
+  background: rgba(234, 179, 8, 0.95);
   color: white;
   padding: 12px 16px;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
-  box-shadow: 0 10px 25px rgba(239, 68, 68, 0.3);
+  box-shadow: 0 10px 25px rgba(234, 179, 8, 0.3);
   z-index: 1000;
   max-width: 300px;
   backdrop-filter: blur(10px);
@@ -352,7 +352,7 @@ function isHighlighted(id: number) {
 }
 
 .in-use-notification:hover {
-  background: rgba(220, 38, 38, 0.95);
+  background: rgba(202, 138, 4, 0.95);
   transform: scale(1.02);
 }
 
