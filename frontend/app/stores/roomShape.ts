@@ -15,6 +15,15 @@ function shapeUrl(roomId?: number | null) {
   return roomId ? `${apiBase()}/api/rooms/${roomId}/shape` : `${apiBase()}/api/room-shape`
 }
 
+function activeRoomId(): number | null {
+  try {
+    const storage = useStorageStore()
+    return storage.currentRoomId
+  } catch {
+    return null
+  }
+}
+
 interface Point { x: number; y: number }
 
 export const useRoomShapeStore = defineStore('roomShape', () => {
@@ -433,7 +442,8 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     // Laeb salvestatud toakuju backendist (kui on)
     async loadFromServer(roomId?: number | null) {
       try {
-        const res = await fetch(shapeUrl(roomId), { credentials: 'include' })
+        const targetRoomId = roomId ?? activeRoomId()
+        const res = await fetch(shapeUrl(targetRoomId), { credentials: 'include' })
         const data = await res.json()
         if (data?.ok && Array.isArray(data.shape)) {
           points.value = normalizeToStage(data.shape)
@@ -494,7 +504,8 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
           }))
         }
         payload.doorDirection = doorDirection.value
-        await fetch(shapeUrl(roomId), {
+        const targetRoomId = roomId ?? activeRoomId()
+        await fetch(shapeUrl(targetRoomId), {
           method: 'PATCH',
           credentials: 'include',
           headers: { 'content-type': 'application/json' },
