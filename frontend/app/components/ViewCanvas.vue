@@ -31,12 +31,21 @@ const updateInUseNotification = () => {
         emoji = item.emoji
       }
     }
-    const text = `${emoji} ${item.name || 'Mööbel'}\n${inUseItems.slice(0, 2).map(content => 
+   
+    const shownItems = inUseItems.slice(0, 2)
+    const extraItems = inUseItems.length - 2
+    let itemsText = shownItems.map(content =>
       `  tagasta ${content.name || 'ese'} (${content.inUse || 0})`
-    ).join('\n')}`
+    ).join('\n')
+   
+    if (extraItems > 0) {
+      itemsText += `\n  ... +${extraItems} veel`
+    }
+   
+    const text = `${emoji} ${item.name || 'Mööbel'}\n${itemsText}`
     return { id: item.id, text }
   })
-  
+ 
   inUseNotifications.value = notifications
 }
 
@@ -84,7 +93,7 @@ const doorsWithPoints = computed(() => {
       const a = room.points[d.edgeIndex]
       const b = room.points[(d.edgeIndex + 1) % room.points.length]
       if (!a || !b) return { ...d, p1: { x: 0, y: 0 }, p2: { x: 0, y: 0 }, index: idx }
-      
+     
       const p1 = { x: a.x + (b.x - a.x) * (d.t1 ?? 0), y: a.y + (b.y - a.y) * (d.t1 ?? 0) }
       const p2 = { x: a.x + (b.x - a.x) * (d.t2 ?? 0), y: a.y + (b.y - a.y) * (d.t2 ?? 0) }
 
@@ -156,7 +165,6 @@ function getImage(value: string | null | undefined) {
 function linesFor(item: { contents?: { name: string; quantity: number; inUse?: number }[] }) {
   const items = item.contents ?? []
   if (!items.length) return 'Tühi'
-  
   const max = 3
   const shown = items.slice(0, max).map(x => {
     const inUse = x.inUse || 0
@@ -177,8 +185,8 @@ function isHighlighted(id: number) {
 
 <template>
   <div class="canvas-wrap">
-    <div 
-      v-for="(notif, index) in inUseNotifications" 
+    <div
+      v-for="(notif, index) in inUseNotifications"
       :key="notif.id"
       class="in-use-notification"
       :style="{ '--notif-index': index }"
@@ -186,6 +194,7 @@ function isHighlighted(id: number) {
     >
       {{ notif.text }}
     </div>
+
 
     <v-stage :config="{
         width: room.stage.width,
@@ -300,7 +309,6 @@ function isHighlighted(id: number) {
               }"
             />
           </v-group>
-
           <v-label v-if="hoverId===item.id" :config="{
               x: item.x + item.w + 8,
               y: item.y - 8,
@@ -329,29 +337,36 @@ function isHighlighted(id: number) {
 </template>
 
 <style scoped>
-.canvas-wrap { 
-  display: flex; 
-  justify-content: center; 
+.canvas-wrap {
+  display: flex;
+  justify-content: center;
   position: relative;
 }
 
 .in-use-notification {
   position: absolute;
-  top: calc(16px + var(--notif-index, 0) * 90px);
   right: 16px;
+  top: calc(20px + var(--notif-index, 0) * 95px); /* ← FIKSEERITUD vahemaa 95px */
   background: rgba(234, 179, 8, 0.95);
   color: white;
-  padding: 12px 16px;
+  padding: 10px 14px;
+  margin-bottom: 0; /* ← Eemaldatud */
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
   box-shadow: 0 10px 25px rgba(234, 179, 8, 0.3);
   z-index: 1000;
-  max-width: 300px;
+  max-width: 240px;
+  max-height: 85px;
   backdrop-filter: blur(10px);
   white-space: pre-line;
   cursor: pointer;
   user-select: none;
+  overflow: hidden;
+  line-height: 1.15;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
 }
 
 .in-use-notification:hover {
