@@ -257,6 +257,64 @@ function findClosestCenterInsideRoom(wantedCenter: { x: number; y: number }, w: 
   return { x: roomCenter.x, y: roomCenter.y }
 }
 
+// --- Collision helpers ---
+function rectAABB(x: number, y: number, w: number, h: number, rot: number) {
+  const corners = getRectCornersFromTopLeft(x, y, w, h, rot)
+  let minX = Number.POSITIVE_INFINITY, minY = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY, maxY = Number.NEGATIVE_INFINITY
+  for (const c of corners) {
+    if (c.x < minX) minX = c.x
+    if (c.y < minY) minY = c.y
+    if (c.x > maxX) maxX = c.x
+    if (c.y > maxY) maxY = c.y
+  }
+  return { minX, minY, maxX, maxY }
+}
+
+function aabbOverlap(a: { minX: number; minY: number; maxX: number; maxY: number }, b: { minX: number; minY: number; maxX: number; maxY: number }) {
+  return !(a.maxX <= b.minX || a.minX >= b.maxX || a.maxY <= b.minY || a.minY >= b.maxY)
+}
+
+function isOverlappingAny(x: number, y: number, w: number, h: number, rot: number, ignoreId?: number) {
+  const a = rectAABB(x, y, w, h, rot)
+  for (const it of storage.items) {
+    if (ignoreId && it.id === ignoreId) continue
+    const b = rectAABB(it.x, it.y, it.w, it.h, it.rotation || 0)
+    if (aabbOverlap(a, b)) return true
+  }
+  return false
+}
+
+// Find nearest center that is inside room and doesn't overlap existing items.
+function findClosestNonOverlappingCenter(wantedCenter: { x: number; y: number }, w: number, h: number, rot: number, ignoreId?: number) {
+  // If wanted center is valid, return it
+  const topLeft = { x: wantedCenter.x - w / 2, y: wantedCenter.y - h / 2 }
+  if (isRectFullyInsideRoom(topLeft.x, topLeft.y, w, h, rot) && !isOverlappingAny(topLeft.x, topLeft.y, w, h, rot, ignoreId)) {
+    return wantedCenter
+  }
+
+  // Spiral search around wanted center
+  const maxRadius = 1000
+  const step = Math.max(8, Math.min(w, h) / 2)
+  for (let r = step; r <= maxRadius; r += step) {
+    const steps = Math.max(12, Math.floor((2 * Math.PI * r) / step))
+    for (let i = 0; i < steps; i++) {
+      const angle = (i / steps) * Math.PI * 2
+      const cx = wantedCenter.x + Math.cos(angle) * r
+      const cy = wantedCenter.y + Math.sin(angle) * r
+      const tx = cx - w / 2
+      const ty = cy - h / 2
+      if (!isRectFullyInsideRoom(tx, ty, w, h, rot)) continue
+      if (isOverlappingAny(tx, ty, w, h, rot, ignoreId)) continue
+      return { x: cx, y: cy }
+    }
+  }
+
+  // Fallback: place at snapped center inside room (may overlap)
+  const snapped = snapRectInsideRoom(topLeft.x, topLeft.y, w, h, rot)
+  return { x: snapped.x + w / 2, y: snapped.y + h / 2 }
+}
+
 // Deletes an item
 async function deleteItem(id: number) {
   await storage.removeUnit(id)
@@ -317,7 +375,11 @@ onMounted(() => {
     const id = await storage.addUnit(type, x, y, emoji, name)
     const item = storage.items.find(i => i.id === id)!
     const pos = snapRectInsideRoom(item.x, item.y, item.w, item.h, item.rotation)
-    await storage.updatePos(id, pos.x, pos.y)
+    // ensure we don't place on top of existing items
+    const wantedCenter = { x: pos.x + item.w / 2, y: pos.y + item.h / 2 }
+    const center = findClosestNonOverlappingCenter(wantedCenter, item.w, item.h, item.rotation || 0, id)
+    const finalPos = { x: center.x - item.w / 2, y: center.y - item.h / 2 }
+    await storage.updatePos(id, finalPos.x, finalPos.y)
     selectedId.value = id
     selectedIds.value = [id]
     attachTransformer()
@@ -411,9 +473,13 @@ function onDragEnd(id: number, e: {target:any}, item: any) {
   const x = cx - item.w / 2
   const y = cy - item.h / 2
   const pos = snapRectInsideRoom(x, y, item.w, item.h, item.rotation)
-  node.x(pos.x + item.w / 2)
-  node.y(pos.y + item.h / 2)
-  storage.updatePos(id, pos.x, pos.y)
+  // Find nearest non-overlapping center (ignore this item)
+  const wantedCenter = { x: pos.x + item.w / 2, y: pos.y + item.h / 2 }
+  const center = findClosestNonOverlappingCenter(wantedCenter, item.w, item.h, item.rotation || 0, id)
+  const finalPos = { x: center.x - item.w / 2, y: center.y - item.h / 2 }
+  node.x(finalPos.x + item.w / 2)
+  node.y(finalPos.y + item.h / 2)
+  storage.updatePos(id, finalPos.x, finalPos.y)
 }
 
 // Jalgib reaalajas, et suurendatav yksus ei lahkuks ruumist
@@ -447,7 +513,11 @@ function onTransformEnd(id: number, e: any) {
   const rot = ((node.rotation() % 360) + 360) % 360
   const x = node.x() - side / 2
   const y = node.y() - side / 2
-  const pos = snapRectInsideRoom(x, y, side, side, rot)
+  let pos = snapRectInsideRoom(x, y, side, side, rot)
+  // ensure no overlap after transform (ignore this item)
+  const wantedCenter = { x: pos.x + side / 2, y: pos.y + side / 2 }
+  const center = findClosestNonOverlappingCenter(wantedCenter, side, side, rot, id)
+  pos = { x: center.x - side / 2, y: center.y - side / 2 }
   node.x(pos.x + side / 2)
   node.y(pos.y + side / 2)
   storage.updateUnit(id, { x: pos.x, y: pos.y, w: side, h: side, rotation: rot })
@@ -544,11 +614,11 @@ function onTransformEnd(id: number, e: any) {
                 const wantedCenter = { x: pos.x, y: pos.y }
                 const tx = wantedCenter.x - item.w/2
                 const ty = wantedCenter.y - item.h/2
-
+                // Allow dragging freely anywhere inside the room (do not block over other items).
                 if (isRectFullyInsideRoom(tx, ty, item.w, item.h, item.rotation)) {
                   return wantedCenter
                 }
-
+                // If outside, find closest center that is fully inside (but may overlap); collisions resolved on drop
                 const validCenter = findClosestCenterInsideRoom(wantedCenter, item.w, item.h, item.rotation)
                 return validCenter
               }
