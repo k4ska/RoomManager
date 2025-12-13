@@ -158,10 +158,14 @@ function getImage(value: string | null | undefined) {
 function linesFor(item: { contents?: { name: string; quantity: number; inUse?: number }[] }) {
   const items = item.contents ?? []
   if (!items.length) return 'Tühi'
+  
   const max = 3
   const shown = items.slice(0, max).map(x => {
     const inUse = x.inUse || 0
     const available = (x.quantity || 0) - inUse
+    if (inUse === 0) {
+      return `${x.name}: ${available}/${x.quantity}`
+    }
     return `${x.name}: ${available}/${x.quantity} (${inUse} kasutuses)`
   })
   const extra = items.length - shown.length
