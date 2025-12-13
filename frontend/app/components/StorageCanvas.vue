@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, nextTick } from 'vue'
 import { useRoomShapeStore } from '~/stores/roomShape'
 import { useStorageStore, type StorageType } from '~/stores/storageStore'
 
@@ -310,9 +310,8 @@ function findClosestNonOverlappingCenter(wantedCenter: { x: number; y: number },
     }
   }
 
-  // Fallback: place at snapped center inside room (may overlap)
-  const snapped = snapRectInsideRoom(topLeft.x, topLeft.y, w, h, rot)
-  return { x: snapped.x + w / 2, y: snapped.y + h / 2 }
+  // No non-overlapping position found within radius
+  return null
 }
 
 // Deletes an item
@@ -378,6 +377,11 @@ onMounted(() => {
     // ensure we don't place on top of existing items
     const wantedCenter = { x: pos.x + item.w / 2, y: pos.y + item.h / 2 }
     const center = findClosestNonOverlappingCenter(wantedCenter, item.w, item.h, item.rotation || 0, id)
+    if (!center) {
+      // No free spot found — remove the optimistic item to avoid overlaps
+      await storage.removeUnit(id)
+      return
+    }
     const finalPos = { x: center.x - item.w / 2, y: center.y - item.h / 2 }
     await storage.updatePos(id, finalPos.x, finalPos.y)
     selectedId.value = id
@@ -396,6 +400,21 @@ onMounted(() => {
 function detachTransformer() {
   const tr = transformerRef.value?.getNode?.()
   if (tr) tr.nodes([])
+  // Re-enable children listening for all unit groups so they remain selectable
+  try {
+    const layer = layerRef.value?.getNode?.()
+    if (layer) {
+      for (const it of storage.items) {
+        const node = layer.findOne(`#unit-${it.id}`)
+        if (node && node.getChildren) {
+          const children = node.getChildren()
+          for (const c of children) {
+            try { c.listening(true) } catch (e) {}
+          }
+        }
+      }
+    }
+  } catch (e) {}
 }
 
 // Seob transformer’i valitud sõlmega
@@ -405,10 +424,18 @@ function attachTransformer(id?: number) {
   if (!layer || !tr) return
   const node = layer.findOne(`#unit-${selectedId.value}`)
   if (node) {
+    // Always attach transformer explicitly to the group node
     tr.nodes([node])
-    tr.keepRatio(true)
+    tr.keepRatio(false)
     tr.moveToTop()
     layer.draw()
+    // Ensure children are not individually listening to events
+    try {
+      const children = node.getChildren ? node.getChildren() : []
+      for (const c of children) {
+        c.listening(false)
+      }
+    } catch (e) {}
   }
 }
 
@@ -466,7 +493,7 @@ function onRectClick(id: number, evt: {evt: MouseEvent}) {
 }
 
 // Uuendab üksuse asukohta peale lohistamise lõppu
-function onDragEnd(id: number, e: {target:any}, item: any) {
+async function onDragEnd(id: number, e: {target:any}, item: any) {
   const node = e.target
   const cx = node.x()
   const cy = node.y()
@@ -476,10 +503,19 @@ function onDragEnd(id: number, e: {target:any}, item: any) {
   // Find nearest non-overlapping center (ignore this item)
   const wantedCenter = { x: pos.x + item.w / 2, y: pos.y + item.h / 2 }
   const center = findClosestNonOverlappingCenter(wantedCenter, item.w, item.h, item.rotation || 0, id)
+  if (!center) {
+    // revert to original position if no free spot
+    node.x(item.x + item.w / 2)
+    node.y(item.y + item.h / 2)
+    storage.updatePos(id, item.x, item.y)
+    return
+  }
   const finalPos = { x: center.x - item.w / 2, y: center.y - item.h / 2 }
-  node.x(finalPos.x + item.w / 2)
-  node.y(finalPos.y + item.h / 2)
-  storage.updatePos(id, finalPos.x, finalPos.y)
+    node.x(finalPos.x + item.w / 2)
+    node.y(finalPos.y + item.h / 2)
+    await storage.updatePos(id, finalPos.x, finalPos.y)
+    await nextTick()
+    attachTransformer(id)
 }
 
 // Jalgib reaalajas, et suurendatav yksus ei lahkuks ruumist
@@ -487,40 +523,60 @@ function onTransform(id: number, e: any) {
   const node = e.target
   const item = storage.items.find(i => i.id === id)
   if (!item) return
-  const scale = node.scaleX() || 1
-  const side = Math.max(MIN, item.w * scale)
+  // Allow independent scaleX/scaleY for rectangular resize
+  const scaleX = node.scaleX() || 1
+  const scaleY = node.scaleY() || 1
+  const newW = Math.max(MIN, item.w * scaleX)
+  const newH = Math.max(MIN, item.h * scaleY)
   const rot = ((node.rotation() % 360) + 360) % 360
-  const x = node.x() - side / 2
-  const y = node.y() - side / 2
-  if (!isRectFullyInsideRoom(x, y, side, side, rot)) {
-    const prev = (node as any)._rmLastScale ?? 1
-    node.scaleX(prev)
-    node.scaleY(prev)
+  const x = node.x() - newW / 2
+  const y = node.y() - newH / 2
+  if (!isRectFullyInsideRoom(x, y, newW, newH, rot)) {
+    const prevX = (node as any)._rmLastScaleX ?? 1
+    const prevY = (node as any)._rmLastScaleY ?? 1
+    node.scaleX(prevX)
+    node.scaleY(prevY)
     return
   }
-  (node as any)._rmLastScale = scale
+  ;(node as any)._rmLastScaleX = scaleX
+  ;(node as any)._rmLastScaleY = scaleY
 }
 
 // Uuendab suuruse ja pöördenurga peale transformatsiooni lõppu
-function onTransformEnd(id: number, e: any) {
+async function onTransformEnd(id: number, e: any) {
   const node = e.target
-  const scale = node.scaleX() || 1
+  const scaleX = node.scaleX() || 1
+  const scaleY = node.scaleY() || 1
   const item = storage.items.find(i => i.id === id)!
-  const side = Math.max(MIN, item.w * scale)
+  const newW = Math.max(MIN, item.w * scaleX)
+  const newH = Math.max(MIN, item.h * scaleY)
   node.scaleX(1)
   node.scaleY(1)
-  ;(node as any)._rmLastScale = 1
+  ;(node as any)._rmLastScaleX = 1
+  ;(node as any)._rmLastScaleY = 1
   const rot = ((node.rotation() % 360) + 360) % 360
-  const x = node.x() - side / 2
-  const y = node.y() - side / 2
-  let pos = snapRectInsideRoom(x, y, side, side, rot)
+  const x = node.x() - newW / 2
+  const y = node.y() - newH / 2
+  let pos = snapRectInsideRoom(x, y, newW, newH, rot)
   // ensure no overlap after transform (ignore this item)
-  const wantedCenter = { x: pos.x + side / 2, y: pos.y + side / 2 }
-  const center = findClosestNonOverlappingCenter(wantedCenter, side, side, rot, id)
-  pos = { x: center.x - side / 2, y: center.y - side / 2 }
-  node.x(pos.x + side / 2)
-  node.y(pos.y + side / 2)
-  storage.updateUnit(id, { x: pos.x, y: pos.y, w: side, h: side, rotation: rot })
+  const wantedCenter = { x: pos.x + newW / 2, y: pos.y + newH / 2 }
+  const center = findClosestNonOverlappingCenter(wantedCenter, newW, newH, rot, id)
+  if (!center) {
+    // No free spot found — revert to previous size/position
+    node.scaleX(1)
+    node.scaleY(1)
+    node.x(item.x + item.w / 2)
+    node.y(item.y + item.h / 2)
+    // ensure storage remains unchanged
+    storage.updateUnit(id, { x: item.x, y: item.y, w: item.w, h: item.h, rotation: item.rotation || 0 })
+    return
+  }
+  pos = { x: center.x - newW / 2, y: center.y - newH / 2 }
+  node.x(pos.x + newW / 2)
+  node.y(pos.y + newH / 2)
+  await storage.updateUnit(id, { x: pos.x, y: pos.y, w: newW, h: newH, rotation: rot })
+  await nextTick()
+  attachTransformer(id)
 }
 </script>
 
@@ -645,10 +701,10 @@ function onTransformEnd(id: number, e: any) {
             <v-image
               v-if="isImageEmoji(item.emoji)"
               :config="{
-                x: -Math.min(item.w, item.h) * 0.7 / 2,
-                y: -Math.min(item.w, item.h) * 0.7 / 2,
-                width: Math.min(item.w, item.h) * 0.7,
-                height: Math.min(item.w, item.h) * 0.7,
+                x: -item.w * 0.8 / 2,
+                y: -item.h * 0.8 / 2,
+                width: item.w * 0.8,
+                height: item.h * 0.8,
                 image: getImage(item.emoji) || undefined,
                 listening: false
               }"
@@ -718,23 +774,25 @@ function onTransformEnd(id: number, e: any) {
           ref="transformerRef"
           :config="{
             rotateEnabled: true,
-            enabledAnchors: ['top-left','top-right','bottom-left','bottom-right'],
+            // allow resizing from all sides and corners (rectangular resize)
+            enabledAnchors: ['top-left','top-center','top-right','middle-left','middle-right','bottom-left','bottom-center','bottom-right'],
             boundBoxFunc: (oldBox:any, newBox:any) => {
               const rawWidth = Math.abs(newBox.width)
               const rawHeight = Math.abs(newBox.height)
-              const side = Math.max(MIN, Math.max(rawWidth, rawHeight))
+              const width = Math.max(MIN, rawWidth)
+              const height = Math.max(MIN, rawHeight)
               const centerX = newBox.x + (newBox.width / 2)
               const centerY = newBox.y + (newBox.height / 2)
-              const topLeftX = centerX - side / 2
-              const topLeftY = centerY - side / 2
+              const topLeftX = centerX - width / 2
+              const topLeftY = centerY - height / 2
               const rotation = typeof newBox.rotation === 'number' ? newBox.rotation : (oldBox.rotation || 0)
-              // Takistab, et kasutaja ei venitaks yksust ruumi piiridest valja
-              if (!isRectFullyInsideRoom(topLeftX, topLeftY, side, side, rotation)) {
+              // Prevent user from resizing unit outside room bounds
+              if (!isRectFullyInsideRoom(topLeftX, topLeftY, width, height, rotation)) {
                 return oldBox
               }
               const widthSign = newBox.width >= 0 ? 1 : -1
               const heightSign = newBox.height >= 0 ? 1 : -1
-              return { ...newBox, width: widthSign * side, height: heightSign * side }
+              return { ...newBox, width: widthSign * width, height: heightSign * height }
             }
           }"
         />
