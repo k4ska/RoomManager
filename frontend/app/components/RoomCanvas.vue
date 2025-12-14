@@ -248,7 +248,7 @@ const doorsWithPoints = computed(() => {
       const edgePerp = getWindowPerp(p1, p2)
       const capLen = 18
 
-      const isInside = (d.direction || store.doorDirection) === 'inside'
+      const isInside = (d.direction || 'inside') === 'inside'
       const nx = isInside ? edgePerp.nx : -edgePerp.nx
       const ny = isInside ? edgePerp.ny : -edgePerp.ny
 
@@ -335,16 +335,6 @@ const roomAreaM2 = computed(() => {
   area = Math.abs(area) / 2
   return area / (store.metricsScale * store.metricsScale)
 })
-
-function onDoorDirectionChange(index: number, event: Event) {
-  const target = event.target as HTMLSelectElement
-  const newDir = target.value as 'inside' | 'outside'
-  
-  const door = { ...store.doors[index], direction: newDir }
-  store.doors.splice(index, 1, door)
-  
-  store.saveToServer()
-}
 
 function getWallPixels(edgeIndex: number) {
   const a = store.points[edgeIndex]
@@ -651,20 +641,18 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
           <label>Ruumi pindala (m²):</label>
           <div>{{ roomAreaM2.toFixed(2) }}</div>
         </div>
-        <div class="row">
-          <label>Uute uste suund:</label>
-          <select v-model="store.doorDirection" @change="store.saveToServer()">
-            <option value="inside">Sisse</option>
-            <option value="outside">Välja</option>
-          </select>
-        </div>
 
-        <!-- UKSED ERALDI -->
         <div class="doors-list">
           <div class="doors-header">Uksed</div>
           <div v-for="(door, i) in store.doors" :key="'d' + i" class="door-row">
             <div class="door-label">U{{ i + 1 }}</div>
-            <select @change="onDoorDirectionChange(i, $event)">
+            <select @change="(e) => {
+              const target = e.target as HTMLSelectElement
+              const newDir = target.value as 'inside' | 'outside'
+              const door = { ...store.doors[i], direction: newDir }
+              store.doors.splice(i, 1, door)
+              store.saveToServer()
+            }">
               <option value="inside" :selected="(door.direction || 'inside') === 'inside'">Sisse</option>
               <option value="outside" :selected="door.direction === 'outside'">Välja</option>
             </select>
