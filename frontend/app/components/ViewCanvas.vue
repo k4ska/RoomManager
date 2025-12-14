@@ -45,7 +45,7 @@ const updateInUseNotification = () => {
     const text = `${emoji} ${item.name || 'Mööbel'}\n${itemsText}`
     return { id: item.id, text }
   })
- 
+  
   inUseNotifications.value = notifications
 }
 
@@ -189,179 +189,195 @@ function isHighlighted(id: number) {
 </script>
 
 <template>
-  <div class="canvas-wrap">
-    <div
-      v-for="(notif, index) in inUseNotifications"
-      :key="notif.id"
-      class="in-use-notification"
-      :style="{ '--notif-index': index }"
-      @click="handleNotificationClick(notif.id)"
-    >
-      {{ notif.text }}
-    </div>
-
-
-    <v-stage :config="{
+  <div class="layout-container">
+    <!-- RUUM vasakul -->
+    <div class="canvas-wrap">
+      <v-stage :config="{
         width: room.stage.width,
         height: room.stage.height
       }">
-      <v-layer>
-        <v-rect :config="{
-          x: 0,
-          y: 0,
-          width: room.stage.width,
-          height: room.stage.height,
-          fill: '#0b1222'
-        }" @click="() => emit('select', null)" />
-        <v-line
-          :points="room.points.flatMap(p => [p.x, p.y])"
-          :closed="true"
-          :stroke="'#e5e7eb'"
-          :strokeWidth="2.5"
-          :fill="'rgba(16,185,129,0.06)'"
-          @click="() => emit('select', null)"
-        />
-        <template v-for="(win, idx) in windowsWithPoints" :key="'win' + win.index">
-          <v-line :config="{
+        <v-layer>
+          <v-rect :config="{
+            x: 0,
+            y: 0,
+            width: room.stage.width,
+            height: room.stage.height,
+            fill: '#0b1222'
+          }" @click="() => emit('select', null)" />
+          <v-line
+            :points="room.points.flatMap(p => [p.x, p.y])"
+            :closed="true"
+            :stroke="'#e5e7eb'"
+            :strokeWidth="2.5"
+            :fill="'rgba(16,185,129,0.06)'"
+            @click="() => emit('select', null)"
+          />
+          <template v-for="(win, idx) in windowsWithPoints" :key="'win' + win.index">
+            <v-line :config="{
               points: [win.p1.x, win.p1.y, win.p2.x, win.p2.y],
               stroke: 'rgba(16,185,129,0.06)',
               strokeWidth: 8,
               lineCap: 'butt',
               listening: false
             }" />
-          <v-line :config="{
+            <v-line :config="{
               points: capPointsAt(win.p1, getWindowPerp(win.p1, win.p2).nx, getWindowPerp(win.p1, win.p2).ny, 14),
               stroke: '#e5e7eb', strokeWidth: 2, listening: false
             }" />
-          <v-line :config="{
+            <v-line :config="{
               points: capPointsAt(win.p2, getWindowPerp(win.p1, win.p2).nx, getWindowPerp(win.p1, win.p2).ny, 14),
               stroke: '#e5e7eb', strokeWidth: 2, listening: false
             }" />
-        </template>
-        <template v-for="(door, idx) in doorsWithPoints" :key="'door' + door.index">
-          <v-line
-            :config="{
-              points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncVertEnd.x, door.lJuncVertEnd.y],
-              stroke: '#e5e7eb',
-              strokeWidth: 2,
-              listening: false
-            }"
-          />
-          <v-line
-            :config="{
-              points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncCapEnd.x, door.lJuncCapEnd.y],
-              stroke: '#e5e7eb',
-              strokeWidth: 2,
-              listening: false
-            }"
-          />
-          <v-line
-            :config="{
-              points: door.curvePoints,
-              stroke: '#fff',
-              strokeWidth: 2.5,
-              listening: false,
-              lineCap: 'round'
-            }"
-          />
-        </template>
-        <template v-for="item in storage.items" :key="item.id">
-          <v-group
-            :config="{
-              x: item.x + item.w/2,
-              y: item.y + item.h/2,
-              rotation: item.rotation
-            }"
-            @click="emit('select', item.id)"
-            @mouseenter="() => hoverId = item.id"
-            @mouseleave="() => hoverId = (hoverId===item.id ? null : hoverId)"
-          >
-            <v-rect :config="{
-              x: -item.w/2,
-              y: -item.h/2,
-              width: item.w,
-              height: item.h,
-              cornerRadius: 8,
-              stroke: isHighlighted(item.id) ? '#facc15' : (hoverId===item.id ? '#93c5fd' : undefined),
-              strokeWidth: isHighlighted(item.id) ? 3 : (hoverId===item.id ? 2 : 0),
-              shadowColor: isHighlighted(item.id) ? '#facc15' : undefined,
-              shadowBlur: isHighlighted(item.id) ? 18 : 0,
-              shadowOpacity: isHighlighted(item.id) ? 0.9 : 0
-            }" />
-            <v-image
-              v-if="isImageEmoji(item.emoji)"
+          </template>
+          <template v-for="(door, idx) in doorsWithPoints" :key="'door' + door.index">
+            <v-line
               :config="{
-                x: -item.w/2,
-                y: -item.h/2,
-                width: item.w,
-                height: item.h,
-                image: getImage(item.emoji) || undefined,
+                points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncVertEnd.x, door.lJuncVertEnd.y],
+                stroke: '#e5e7eb',
+                strokeWidth: 2,
                 listening: false
               }"
             />
-            <v-text
-              v-else
+            <v-line
               :config="{
+                points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncCapEnd.x, door.lJuncCapEnd.y],
+                stroke: '#e5e7eb',
+                strokeWidth: 2,
+                listening: false
+              }"
+            />
+            <v-line
+              :config="{
+                points: door.curvePoints,
+                stroke: '#fff',
+                strokeWidth: 2.5,
+                listening: false,
+                lineCap: 'round'
+              }"
+            />
+          </template>
+          <template v-for="item in storage.items" :key="item.id">
+            <v-group
+              :config="{
+                x: item.x + item.w/2,
+                y: item.y + item.h/2,
+                rotation: item.rotation
+              }"
+              @click="emit('select', item.id)"
+              @mouseenter="() => hoverId = item.id"
+              @mouseleave="() => hoverId = (hoverId===item.id ? null : hoverId)"
+            >
+              <v-rect :config="{
                 x: -item.w/2,
                 y: -item.h/2,
                 width: item.w,
                 height: item.h,
-                align: 'center',
-                verticalAlign: 'middle',
-                text: item.emoji,
-                fontSize: Math.max(EMOJI_SIZE, Math.min(item.w, item.h) * 0.5),
-                fill: '#ffffff'
-              }"
-            />
-          </v-group>
-          <v-label v-if="hoverId===item.id" :config="{
+                cornerRadius: 8,
+                stroke: isHighlighted(item.id) ? '#facc15' : (hoverId===item.id ? '#93c5fd' : undefined),
+                strokeWidth: isHighlighted(item.id) ? 3 : (hoverId===item.id ? 2 : 0),
+                shadowColor: isHighlighted(item.id) ? '#facc15' : undefined,
+                shadowBlur: isHighlighted(item.id) ? 18 : 0,
+                shadowOpacity: isHighlighted(item.id) ? 0.9 : 0
+              }" />
+              <v-image
+                v-if="isImageEmoji(item.emoji)"
+                :config="{
+                  x: -item.w/2,
+                  y: -item.h/2,
+                  width: item.w,
+                  height: item.h,
+                  image: getImage(item.emoji) || undefined,
+                  listening: false
+                }"
+              />
+              <v-text
+                v-else
+                :config="{
+                  x: -item.w/2,
+                  y: -item.h/2,
+                  width: item.w,
+                  height: item.h,
+                  align: 'center',
+                  verticalAlign: 'middle',
+                  text: item.emoji,
+                  fontSize: Math.max(EMOJI_SIZE, Math.min(item.w, item.h) * 0.5),
+                  fill: '#ffffff'
+                }"
+              />
+            </v-group>
+            <v-label v-if="hoverId===item.id" :config="{
               x: item.x + item.w + 8,
               y: item.y - 8,
               opacity: 0.95
             }">
-            <v-tag :config="{
-              fill: 'rgba(15,23,42,0.9)',
-              stroke: '#334155',
-              cornerRadius: 8,
-              shadowColor: 'black',
-              shadowBlur: 8,
-              shadowOpacity: 0.25
-            }" />
-            <v-text :config="{
-              text: (item.name ? (item.name + '\n') : '') + linesFor(item),
-              fontSize: 14,
-              padding: 8,
-              fill: '#e5e7eb',
-              lineHeight: 1.2
-            }" />
-          </v-label>
-        </template>
-      </v-layer>
-    </v-stage>
+              <v-tag :config="{
+                fill: 'rgba(15,23,42,0.9)',
+                stroke: '#334155',
+                cornerRadius: 8,
+                shadowColor: 'black',
+                shadowBlur: 8,
+                shadowOpacity: 0.25
+              }" />
+              <v-text :config="{
+                text: (item.name ? (item.name + '\n') : '') + linesFor(item),
+                fontSize: 14,
+                padding: 8,
+                fill: '#e5e7eb',
+                lineHeight: 1.2
+              }" />
+            </v-label>
+          </template>
+        </v-layer>
+      </v-stage>
+    </div>
+
+    <!-- MÄRGUANDED paremal -->
+    <div class="notifications-panel">
+      <div
+        v-for="(notif, index) in inUseNotifications"
+        :key="notif.id"
+        class="in-use-notification"
+        :style="{ '--notif-index': index }"
+        @click="handleNotificationClick(notif.id)"
+      >
+        {{ notif.text }}
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.canvas-wrap {
+.layout-container {
   display: flex;
-  justify-content: center;
-  position: relative;
+  gap: 20px;
+  width: 100%;
+  padding: 20px;
+  align-items: flex-start;
+}
+
+.canvas-wrap {
+  flex: 1;
+  max-width: 80vw;
+}
+
+.notifications-panel {
+  flex-shrink: 0;
+  width: 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .in-use-notification {
-  position: absolute;
-  right: 16px;
-  top: calc(20px + var(--notif-index, 0) * 95px); /* ← FIKSEERITUD vahemaa 95px */
   background: rgba(234, 179, 8, 0.95);
   color: white;
   padding: 10px 14px;
-  margin-bottom: 0; /* ← Eemaldatud */
   border-radius: 8px;
   font-size: 12px;
   font-weight: 500;
   box-shadow: 0 10px 25px rgba(234, 179, 8, 0.3);
   z-index: 1000;
-  max-width: 240px;
+  max-width: 170px;
   max-height: 85px;
   backdrop-filter: blur(10px);
   white-space: pre-line;
@@ -379,7 +395,7 @@ function isHighlighted(id: number) {
   transform: scale(1.02);
 }
 
-.canvas-wrap :deep(.in-use-notification) {
+.notifications-panel :deep(.in-use-notification) {
   animation: pulse 2s infinite;
 }
 
