@@ -15,7 +15,7 @@
       <StorageSelector />
       <div class="canvas-card">
         <div class="hint">
-          Lohista „Kast”, „Kapp” või „Riiul” lõuendile. Klõpsa objektidel, et neid valida (või tühista valik).
+          Lohista valitud objekt lõuendile. 
         </div>
         <ClientOnly>
           <StorageCanvas />

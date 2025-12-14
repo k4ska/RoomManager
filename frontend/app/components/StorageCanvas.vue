@@ -18,6 +18,7 @@ const MIN = 30 // minimum side length in pixels
 const PADDING = 4 //emoji ümber ruum
 const WALL_MARGIN = 2 // minimum distance from walls in pixels
 const DELETE_BTN_SIZE = 24 // size of delete button
+const VISUAL_GRID_PX = 40 // visual grid cell size in pixels (fixed)
 
 // Tagastab väärtuse piiratud vahemikus [min, max]
 function clampValue(v: number, min: number, max: number) {
@@ -116,6 +117,50 @@ function capPointsAt(p: {x:number,y:number}, nx: number, ny: number, capLen: num
   const half = capLen / 2
   return [p.x - nx * half, p.y - ny * half, p.x + nx * half, p.y + ny * half]
 }
+
+// Grid lines visible inside the room only (clipped to room polygon)
+const gridLines = computed(() => {
+  const spacing = VISUAL_GRID_PX
+  const w = room.stage.width
+  const h = room.stage.height
+  const lines: Array<[number,number,number,number]> = []
+  for (let x = 0; x <= w; x += spacing) lines.push([x, 0, x, h])
+  for (let y = 0; y <= h; y += spacing) lines.push([0, y, w, y])
+  return lines
+})
+
+function roomClipFunc(ctx: any) {
+  const pts = room.points
+  if (!pts || pts.length === 0) return
+  ctx.beginPath()
+  ctx.moveTo(pts[0].x, pts[0].y)
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
+  ctx.closePath()
+}
+
+const gridLabel = computed(() => {
+  const spacingPx = VISUAL_GRID_PX
+  const pxPerMeter = Math.max(1, Math.floor(room.metricsScale || 40))
+  const metersPerCell = spacingPx / (pxPerMeter || 1)
+  const metersText = Math.abs(Math.round(metersPerCell) - metersPerCell) < 1e-6 ? `${Math.round(metersPerCell)}` : `${metersPerCell.toFixed(2)}`
+  return `1 ruudu külg = ${metersText} m`
+})
+
+const GRID_LABEL_PADDING = 8
+const GRID_LABEL_FONT_SIZE = 13
+
+const gridLabelSize = computed(() => {
+  // measure text width using canvas measureText for tight box sizing
+  if (typeof document === 'undefined') return { width: 140, height: 26, textWidth: 120 }
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')!
+  ctx.font = `${GRID_LABEL_FONT_SIZE}px Arial`
+  const metrics = ctx.measureText(gridLabel.value)
+  const textWidth = Math.ceil(metrics.width)
+  const width = textWidth + GRID_LABEL_PADDING * 2
+  const height = GRID_LABEL_FONT_SIZE + GRID_LABEL_PADDING
+  return { width, height, textWidth }
+})
 
 // Map room.windows (edge-relative) to real coordinates so windows follow walls
 const windowsWithPoints = computed(() => {
@@ -630,6 +675,36 @@ async function onTransformEnd(id: number, e: any) {
             height: room.stage.height,
             fill: '#0b1222'
           }" @mousedown="clearSelection" />
+
+        <!-- Grid clipped to room polygon -->
+        <v-group :config="{ clipFunc: roomClipFunc }">
+          <template v-for="(ln, idx) in gridLines" :key="'grid-'+idx">
+            <v-line :config="{ points: ln, stroke: '#1f2937', strokeWidth: 1, listening: false }" />
+          </template>
+        </v-group>
+
+        <!-- Grid size label (top-right) - tight fit -->
+        <v-group :config="{ x: 0, y: 0 }">
+          <v-rect :config="{
+              x: room.stage.width - gridLabelSize.width - 8,
+              y: 8,
+              width: gridLabelSize.width,
+              height: gridLabelSize.height,
+              fill: 'rgba(15,23,42,0.7)',
+              cornerRadius: 6,
+              listening: false
+            }" />
+          <v-text :config="{
+              x: room.stage.width - gridLabelSize.width - 8 + GRID_LABEL_PADDING,
+              y: 8 + Math.floor(GRID_LABEL_PADDING/2),
+              width: gridLabelSize.width - GRID_LABEL_PADDING * 2,
+              text: gridLabel,
+              fontSize: GRID_LABEL_FONT_SIZE,
+              fill: '#e5e7eb',
+              align: 'right',
+              listening: false
+            }" />
+        </v-group>
 
         <v-line
           :points="room.points.flatMap(p => [p.x, p.y])"
