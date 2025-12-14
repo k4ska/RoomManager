@@ -91,7 +91,7 @@ namespace backend.Controllers
             var units = await _db.Furniture.Where(f => f.RoomId == roomId)
                 .Include(f => f.Items)
                 .OrderBy(f => f.Id)
-                .Select(f => new { id = f.Id, type = f.Type.ToString(), x = f.X, y = f.Y, w = f.W, h = f.H, rotation = f.Rotation, emoji = f.Emoji, name = f.Name, items = f.Items.Select(i => new { id = i.Id, name = i.Name, quantity = i.Quantity }) })
+                .Select(f => new { id = f.Id, type = f.Type.ToString(), x = f.X, y = f.Y, w = f.W, h = f.H, rotation = f.Rotation, emoji = f.Emoji, name = f.Name, items = f.Items.Select(i => new { id = i.Id, name = i.Name, quantity = i.Quantity, isTaken = i.IsTaken }) })
                 .ToListAsync();
             return Ok(new { ok = true, units });
         }

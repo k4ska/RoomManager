@@ -122,8 +122,15 @@ using (var scope = ((IApplicationBuilder)app).ApplicationServices.GetRequiredSer
         ""Id"" SERIAL PRIMARY KEY,
         ""FurnitureId"" INT NOT NULL REFERENCES ""Furniture""(""Id"") ON DELETE CASCADE,
         ""Name"" TEXT NOT NULL,
-        ""Quantity"" INT NOT NULL
-      );";
+        ""Quantity"" INT NOT NULL,
+        ""IsTaken"" BOOLEAN NOT NULL DEFAULT FALSE
+      );
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Items' AND column_name='IsTaken') THEN
+            ALTER TABLE ""Items"" ADD COLUMN ""IsTaken"" BOOLEAN NOT NULL DEFAULT FALSE;
+        END IF;
+      END $$;";
     await cmd.ExecuteNonQueryAsync();
 }
 

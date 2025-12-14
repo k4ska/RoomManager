@@ -1,10 +1,31 @@
 <script setup lang="ts">
 import { useRoomShapeStore } from '~/stores/roomShape'
-import { computed, ref } from 'vue'
+import { useStorageStore } from '~/stores/storageStore'
+import { computed, ref, onMounted } from 'vue'
 import UusConfirmPopup from '~/components/uusConfirmPopup.vue'
 const store = useRoomShapeStore()
+const storage = useStorageStore()
 const winConfirmRef = ref<any>(null)
 const doorConfirmRef = ref<any>(null)
+
+onMounted(() => {
+  storage.loadUnits()
+})
+
+function checkOverlap(id: number, x: number, y: number, w: number, h: number) {
+  for (const other of storage.items) {
+    if (other.id === id) continue
+    if (
+      x < other.x + other.w &&
+      x + w > other.x &&
+      y < other.y + other.h &&
+      y + h > other.y
+    ) {
+      return true
+    }
+  }
+  return false
+}
 
 // metrics panel removed: no panel position or dragging state
 
@@ -433,6 +454,112 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
           :strokeWidth="2.5"
           :fill="'rgba(16,185,129,0.08)'"
         />
+
+        <!-- Furniture Items -->
+        <v-group
+          v-for="item in storage.items"
+          :key="'furn-' + item.id"
+          :config="{
+            x: item.x,
+            y: item.y,
+            draggable: true,
+            rotation: item.rotation
+          }"
+          @dragend="(e: any) => {
+            const newX = e.target.x()
+            const newY = e.target.y()
+            if (!checkOverlap(item.id, newX, newY, item.w, item.h)) {
+               storage.updatePos(item.id, newX, newY)
+               storage.saveToServer()
+            } else {
+               e.target.position({ x: item.x, y: item.y })
+            }
+          }"
+        >
+          <v-rect
+            :config="{
+              width: item.w,
+              height: item.h,
+              fill: storage.highlightedItemId && item.contents.some(c => c.id === storage.highlightedItemId) ? '#4b5563' : '#1f2937',
+              stroke: storage.highlightedItemId && item.contents.some(c => c.id === storage.highlightedItemId) ? '#fbbf24' : '#9ca3af',
+              strokeWidth: storage.highlightedItemId && item.contents.some(c => c.id === storage.highlightedItemId) ? 2 : 1,
+              cornerRadius: 4,
+              shadowColor: 'black',
+              shadowBlur: 5,
+              shadowOpacity: 0.3
+            }"
+          />
+          <v-text
+            :config="{
+              text: item.emoji,
+              fontSize: 24,
+              x: 5,
+              y: 5
+            }"
+          />
+          <v-text
+            :config="{
+              text: item.name || '',
+              fontSize: 12,
+              fill: '#e5e7eb',
+              x: 35,
+              y: 10,
+              width: item.w - 40,
+              wrap: 'none',
+              ellipsis: true
+            }"
+          />
+          <v-group :config="{ x: 5, y: 35 }">
+            <v-text
+              v-for="(content, idx) in item.contents.slice(0, 3)"
+              :key="idx"
+              :config="{
+                text: (content.isTaken ? '🔴 ' : '🟢 ') + content.name,
+                fontSize: 10,
+                fill: content.id === storage.highlightedItemId ? '#fbbf24' : '#d1d5db',
+                y: idx * 12,
+                width: item.w - 10,
+                wrap: 'none',
+                ellipsis: true
+              }"
+            />
+            <v-text
+              v-if="item.contents.length > 3"
+              :config="{
+                text: `+${item.contents.length - 3} more...`,
+                fontSize: 10,
+                fill: '#9ca3af',
+                y: 3 * 12
+              }"
+            />
+          </v-group>
+          
+          <v-circle
+            :config="{
+              x: item.w,
+              y: item.h,
+              radius: 6,
+              fill: '#60a5fa',
+              draggable: true
+            }"
+            @dragmove="(e: any) => {
+               const newW = Math.max(50, e.target.x());
+               const newH = Math.max(50, e.target.y());
+               storage.updateUnit(item.id, { w: newW, h: newH });
+               e.target.position({ x: newW, y: newH });
+            }"
+            @dragend="(e: any) => {
+               const newW = Math.max(50, e.target.x());
+               const newH = Math.max(50, e.target.y());
+               if (!checkOverlap(item.id, item.x, item.y, newW, newH)) {
+                   storage.saveToServer()
+               } else {
+                   storage.loadUnits()
+               }
+            }"
+            @click="(e: any) => { e.cancelBubble = true; }"
+          />
+        </v-group>
         <!-- Regular points (green vertices) -->
         <v-circle
           v-for="(p, i) in store.points"

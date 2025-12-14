@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 export type StorageType = 'box' | 'cabinet' | 'shelf' | 'table' | 'drawer' | 'locker' | 'workbench'
 export type StorageKind = StorageType | 'custom' | string
 
-export interface StoredObject { name: string; quantity: number }
+export interface StoredObject { id: number; name: string; quantity: number; isTaken: boolean }
 
 export interface StorageUnit {
   id: number
@@ -48,6 +48,7 @@ const META: Record<StorageType, { w: number; h: number; emoji: string }> = {
 export const useStorageStore = defineStore('storage', () => {
   const items = ref<StorageUnit[]>([])
   const currentRoomId = ref<number | null>(null)
+  const highlightedItemId = ref<number | null>(null)
 
   const runtime = (useRuntimeConfig?.() as any)
   const publicCfg = runtime.public
@@ -65,7 +66,7 @@ export const useStorageStore = defineStore('storage', () => {
       rotation: u.rotation,
       emoji: u.emoji,
       name: u.name ?? undefined,
-      contents: (u.items || []).map((it: any) => ({ name: it.name, quantity: it.quantity }))
+      contents: (u.items || []).map((it: any) => ({ id: it.id, name: it.name, quantity: it.quantity, isTaken: it.isTaken }))
     }
   }
 
@@ -209,13 +210,40 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
+  async function toggleItemStatus(itemId: number, currentStatus: boolean) {
+      const res = await fetch(`${publicApiBase}/api/items/${itemId}`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ isTaken: !currentStatus }),
+          credentials: 'include'
+      })
+      const data = await res.json()
+      if (data.ok) {
+          await loadUnits()
+      }
+  }
+
+  async function updateItem(itemId: number, dto: { name?: string, quantity?: number, furnitureId?: number }) {
+      const res = await fetch(`${publicApiBase}/api/items/${itemId}`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(dto),
+          credentials: 'include'
+      })
+      const data = await res.json()
+      if (data.ok) {
+          await loadUnits()
+      }
+  }
+
   return {
-    items, currentRoomId,
+    items, currentRoomId, highlightedItemId,
     ensureRoom, loadUnits,
     addUnit, updateUnit,
     updatePos, removeUnit,
     clear, setContents,
     addContent, removeContent,
-    saveToServer, deleteUnit
+    saveToServer, deleteUnit,
+    toggleItemStatus, updateItem
   }
 })
