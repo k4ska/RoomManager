@@ -35,7 +35,7 @@ const updateInUseNotification = () => {
     const shownItems = inUseItems.slice(0, 2)
     const extraItems = inUseItems.length - 2
     let itemsText = shownItems.map(content =>
-      `  tagasta ${content.name || 'ese'} (${content.inUse || 0})`
+      `  ⚠️ Tagasta ${content.name || 'ese'} (${content.inUse || 0})`
     ).join('\n')
    
     if (extraItems > 0) {
@@ -50,7 +50,12 @@ const updateInUseNotification = () => {
 }
 
 const handleNotificationClick = (unitId: number) => {
-  emit('select', unitId)
+  const unit = storage.items.find(i => i.id === unitId)
+  if (unit && unit.contents.some(c => (c.inUse || 0) > 0)) {
+    const firstInUseIndex = unit.contents.findIndex(c => (c.inUse || 0) > 0)
+    storage.highlightedInUse = { unitId, itemIndex: firstInUseIndex }
+    emit('select', unitId)
+  }
 }
 
 watch(() => storage.items, updateInUseNotification, { deep: true })

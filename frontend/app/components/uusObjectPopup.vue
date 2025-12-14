@@ -7,7 +7,7 @@
         </div>
         
         <div class="list">
-          <div v-for="(row, i) in rows" :key="i" class="row">
+          <div v-for="(row, i) in rows" :key="i" class="row" :class="{ 'highlight-inuse': highlightedRow === i }">
             <UInput v-model="row.name" placeholder="Eseme nimi" />
             
             <div class="qty-wrap">
@@ -138,6 +138,12 @@ const save = async () => {
   await store.saveToServer()
   emit('close')
 }
+
+const highlightedRow = computed(() => {
+  const h = store.highlightedInUse
+  return h?.unitId === props.unitId ? h.itemIndex : null
+})
+
 </script>
 
 <style scoped>
@@ -182,6 +188,30 @@ const save = async () => {
 
 .inuse-wrap {
   width: 100%;
+}
+
+.row.highlight-inuse {
+  background: transparent;
+}
+
+.row.highlight-inuse .inuse-wrap {
+  background: linear-gradient(90deg, rgba(234,179,8,0.25), rgba(234,179,8,0.4));
+  border: 2px solid rgba(234,179,8,0.6);
+  border-radius: 6px;
+  padding: 2px;
+  margin-right: -4px;   
+  width: calc(100% + 8px); 
+  animation: pulse-highlight 1s infinite;
+}
+
+.row.highlight-inuse .inuse-label {
+  color: #eab308;
+  font-weight: 700;
+}
+
+@keyframes pulse-highlight {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(234,179,8,0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(234,179,8,0); }
 }
 
 .spacer { flex: 1; }
