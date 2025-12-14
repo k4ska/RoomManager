@@ -7,7 +7,7 @@
         </div>
         
         <div class="list">
-          <div v-for="(row, i) in rows" :key="i" class="row" :class="{ 'highlight-inuse': highlightedRow === i }">
+          <div v-for="(row, i) in rows" :key="i" class="row" :class="{ 'highlight-inuse': highlightedRows.has(i) }">
             <UInput v-model="row.name" placeholder="Eseme nimi" />
             
             <div class="qty-wrap">
@@ -139,9 +139,13 @@ const save = async () => {
   emit('close')
 }
 
-const highlightedRow = computed(() => {
-  const h = store.highlightedInUse
-  return h?.unitId === props.unitId ? h.itemIndex : null
+const highlightedRows = computed(() => {
+  if (!store.highlightedInUse?.unitId || store.highlightedInUse.unitId !== props.unitId) {
+    return new Set<number>()
+  }
+  return new Set(
+    rows.value.map((row, i) => (row.inUse || 0) > 0 ? i : -1).filter(i => i >= 0)
+  )
 })
 
 </script>
