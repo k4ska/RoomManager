@@ -57,6 +57,8 @@ export const useStorageStore = defineStore('storage', () => {
   const currentRoomId = ref<number | null>(null)
   const rooms = ref<RoomSummary[]>([])
 
+  const ROOM_KEY = 'rm_current_room'
+
   function apiBase() {
     try {
       const runtime = useRuntimeConfig()
@@ -82,12 +84,31 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
+  function loadStoredRoomId(): number | null {
+    if (typeof localStorage === 'undefined') return null
+    const raw = localStorage.getItem(ROOM_KEY)
+    const parsed = raw ? parseInt(raw, 10) : NaN
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  function persistRoomId(id: number | null) {
+    if (typeof localStorage === 'undefined') return
+    if (id == null) localStorage.removeItem(ROOM_KEY)
+    else localStorage.setItem(ROOM_KEY, String(id))
+  }
+
   // Veendub, et kasutajal on tuba; vajadusel loob uue
   async function ensureRoom(): Promise<number> {
     if (currentRoomId.value) return currentRoomId.value
     await fetchRooms()
+    const stored = loadStoredRoomId()
+    if (stored && rooms.value.some(r => r.id === stored)) {
+      currentRoomId.value = stored
+      return stored
+    }
     if (rooms.value.length) {
       currentRoomId.value = rooms.value[0].id
+      persistRoomId(currentRoomId.value)
       return currentRoomId.value
     }
     const created = await createRoom('Minu tuba')
@@ -122,6 +143,7 @@ export const useStorageStore = defineStore('storage', () => {
 
   function setCurrentRoom(id: number | null) {
     currentRoomId.value = id
+    persistRoomId(id)
   }
 
   async function updateRoomName(id: number, name: string) {
@@ -152,6 +174,8 @@ export const useStorageStore = defineStore('storage', () => {
       if (data?.ok) {
         await fetchRooms()
         if (currentRoomId.value === id) {
+          const stored = loadStoredRoomId()
+          if (stored === id) persistRoomId(null)
           currentRoomId.value = rooms.value[0]?.id ?? null
           items.value = []
           if (currentRoomId.value) await loadUnits()
