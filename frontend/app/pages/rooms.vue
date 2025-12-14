@@ -25,11 +25,11 @@
 
     <UModal v-model:open="editOpen" title="Muuda toa nime" :ui="{ footer: 'justify-end' }">
       <template #body>
-        <UInput v-model="editName" label="Uus nimi" placeholder="Toa nimi" />
+        <UInput v-model="editName" label="Uus nimi" placeholder="Toa nimi" :maxlength="60" />
       </template>
       <template #footer="{ close }">
         <UButton variant="ghost" @click="closeModals(); close()">Tühista</UButton>
-        <UButton color="primary" @click="confirmEdit">Salvesta</UButton>
+        <UButton color="primary" :disabled="!canEdit" @click="confirmEdit">Salvesta</UButton>
       </template>
     </UModal>
 
@@ -45,11 +45,11 @@
 
     <UModal v-model:open="createOpen" title="Loo uus tuba" :ui="{ footer: 'justify-end' }">
       <template #body>
-        <UInput v-model="createName" label="Toa nimi" placeholder="Nt Kontor" />
+        <UInput v-model="createName" label="Toa nimi" placeholder="Nt Kontor" :maxlength="60" @keydown.enter.prevent="confirmCreate" />
       </template>
       <template #footer="{ close }">
         <UButton variant="ghost" @click="closeCreate(); close()">Tühista</UButton>
-        <UButton color="primary" :loading="loading" @click="confirmCreate">Salvesta</UButton>
+        <UButton color="primary" :loading="loading" :disabled="!canCreate" @click="confirmCreate">Salvesta</UButton>
       </template>
     </UModal>
   </div>
@@ -72,6 +72,8 @@ const createOpen = ref(false)
 const targetRoom = ref<{ id: number; name: string } | null>(null)
 const editName = ref('')
 const createName = ref('')
+const canCreate = computed(() => createName.value.trim().length > 0)
+const canEdit = computed(() => editName.value.trim().length > 0)
 
 async function fetchRooms() {
   loading.value = true

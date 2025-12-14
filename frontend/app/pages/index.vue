@@ -16,18 +16,18 @@
 
     <UModal v-model:open="createOpen" title="Loo uus tuba" :ui="{ footer: 'justify-end' }">
       <template #body>
-        <UInput v-model="createName" label="Toa nimi" placeholder="Nt Kontor" />
+        <UInput v-model="createName" label="Toa nimi" placeholder="Nt Kontor" :maxlength="60" @keydown.enter.prevent="confirmCreate" />
       </template>
       <template #footer="{ close }">
         <UButton variant="ghost" @click="closeCreate(); close()">Tühista</UButton>
-        <UButton color="primary" :loading="creating" @click="confirmCreate">Salvesta</UButton>
+        <UButton color="primary" :loading="creating" :disabled="!canCreate" @click="confirmCreate">Salvesta</UButton>
       </template>
     </UModal>
   </main>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useStorageStore } from '~/stores/storageStore'
 
@@ -37,6 +37,7 @@ const router = useRouter()
 const createOpen = ref(false)
 const createName = ref('')
 const creating = ref(false)
+const canCreate = computed(() => createName.value.trim().length > 0)
 
 function openCreate() {
   createName.value = ''

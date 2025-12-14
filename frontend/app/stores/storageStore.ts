@@ -107,7 +107,7 @@ export const useStorageStore = defineStore('storage', () => {
       method: 'POST',
       credentials: 'include',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: name || 'Uus tuba' })
+      body: JSON.stringify({ name: (name || 'Uus tuba').slice(0, 60) })
     })
     const data = await res.json()
     const id = data?.room?.id as number | undefined
@@ -126,7 +126,7 @@ export const useStorageStore = defineStore('storage', () => {
 
   async function updateRoomName(id: number, name: string) {
     try {
-      const trimmed = (name ?? '').toString().trim()
+      const trimmed = (name ?? '').toString().trim().slice(0, 60)
       if (!trimmed) return false
       const res = await fetch(`${apiBase()}/api/rooms/${id}`, {
         method: 'PATCH',
