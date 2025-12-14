@@ -205,10 +205,50 @@ const doorsWithPoints = computed(() => {
 // Kontrollib, kas pööratud ristkülik on täielikult ruumi sees ja eemale seintest
 function isRectFullyInsideRoom(x: number, y: number, w: number, h: number, rot: number) {
   const corners = getRectCornersFromTopLeft(x, y, w, h, rot)
+  // 1) All rectangle corners must be strictly inside the polygon and away from walls
   for (const c of corners) {
     if (!isPointInsidePolygon(c.x, c.y, room.points)) return false
     if (getDistanceToPolygon(c.x, c.y, room.points) < WALL_MARGIN) return false
   }
+
+  // 2) None of the rectangle edges must intersect any room edge (catches cases where
+  //    all corners are inside but an edge passes through a concavity or opening)
+  function orient(a: {x:number,y:number}, b: {x:number,y:number}, c: {x:number,y:number}) {
+    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+  }
+  function onSegment(a: {x:number,y:number}, b: {x:number,y:number}, p: {x:number,y:number}) {
+    return Math.min(a.x, b.x) - 1e-9 <= p.x && p.x <= Math.max(a.x, b.x) + 1e-9 && Math.min(a.y, b.y) - 1e-9 <= p.y && p.y <= Math.max(a.y, b.y) + 1e-9
+  }
+  function segmentsIntersect(a: {x:number,y:number}, b: {x:number,y:number}, c: {x:number,y:number}, d: {x:number,y:number}) {
+    const o1 = orient(a, b, c)
+    const o2 = orient(a, b, d)
+    const o3 = orient(c, d, a)
+    const o4 = orient(c, d, b)
+    if (o1 === 0 && onSegment(a, b, c)) return true
+    if (o2 === 0 && onSegment(a, b, d)) return true
+    if (o3 === 0 && onSegment(c, d, a)) return true
+    if (o4 === 0 && onSegment(c, d, b)) return true
+    return (o1 > 0) !== (o2 > 0) && (o3 > 0) !== (o4 > 0)
+  }
+
+  // rectangle edges
+  const rectEdges: Array<[{x:number,y:number},{x:number,y:number}]> = []
+  for (let i = 0; i < 4; i++) {
+    const a = corners[i]
+    const b = corners[(i + 1) % 4]
+    rectEdges.push([a, b])
+  }
+
+  // room edges
+  for (const [ra, rb] of rectEdges) {
+    for (let i = 0; i < room.points.length; i++) {
+      const j = (i + 1) % room.points.length
+      const pa = room.points[i]
+      const pb = room.points[j]
+      if (segmentsIntersect(ra, rb, pa, pb)) return false
+    }
+  }
+
   return true
 }
 
@@ -285,6 +325,11 @@ function isOverlappingAny(x: number, y: number, w: number, h: number, rot: numbe
   return false
 }
 
+// Check whether a rectangular object can move along a straight path from start to end
+// (removed) pathIsClear - reverted to simpler placement logic
+
+// (removed) sweptIsClear - reverting to simpler behavior
+
 // Find nearest center that is inside room and doesn't overlap existing items.
 function findClosestNonOverlappingCenter(wantedCenter: { x: number; y: number }, w: number, h: number, rot: number, ignoreId?: number) {
   // If wanted center is valid, return it
@@ -310,8 +355,9 @@ function findClosestNonOverlappingCenter(wantedCenter: { x: number; y: number },
     }
   }
 
-  // No non-overlapping position found within radius
-  return null
+  // Fallback: place at snapped center inside room (may overlap)
+  const snapped = snapRectInsideRoom(topLeft.x, topLeft.y, w, h, rot)
+  return { x: snapped.x + w / 2, y: snapped.y + h / 2 }
 }
 
 // Deletes an item
@@ -376,14 +422,9 @@ onMounted(() => {
     const pos = snapRectInsideRoom(item.x, item.y, item.w, item.h, item.rotation)
     // ensure we don't place on top of existing items
     const wantedCenter = { x: pos.x + item.w / 2, y: pos.y + item.h / 2 }
-    const center = findClosestNonOverlappingCenter(wantedCenter, item.w, item.h, item.rotation || 0, id)
-    if (!center) {
-      // No free spot found — remove the optimistic item to avoid overlaps
-      await storage.removeUnit(id)
-      return
-    }
-    const finalPos = { x: center.x - item.w / 2, y: center.y - item.h / 2 }
-    await storage.updatePos(id, finalPos.x, finalPos.y)
+      const center = findClosestNonOverlappingCenter(wantedCenter, item.w, item.h, item.rotation || 0, id)
+      const finalPos = { x: center.x - item.w / 2, y: center.y - item.h / 2 }
+      await storage.updatePos(id, finalPos.x, finalPos.y)
     selectedId.value = id
     selectedIds.value = [id]
     attachTransformer()
@@ -503,13 +544,6 @@ async function onDragEnd(id: number, e: {target:any}, item: any) {
   // Find nearest non-overlapping center (ignore this item)
   const wantedCenter = { x: pos.x + item.w / 2, y: pos.y + item.h / 2 }
   const center = findClosestNonOverlappingCenter(wantedCenter, item.w, item.h, item.rotation || 0, id)
-  if (!center) {
-    // revert to original position if no free spot
-    node.x(item.x + item.w / 2)
-    node.y(item.y + item.h / 2)
-    storage.updatePos(id, item.x, item.y)
-    return
-  }
   const finalPos = { x: center.x - item.w / 2, y: center.y - item.h / 2 }
     node.x(finalPos.x + item.w / 2)
     node.y(finalPos.y + item.h / 2)
@@ -560,7 +594,8 @@ async function onTransformEnd(id: number, e: any) {
   let pos = snapRectInsideRoom(x, y, newW, newH, rot)
   // ensure no overlap after transform (ignore this item)
   const wantedCenter = { x: pos.x + newW / 2, y: pos.y + newH / 2 }
-  const center = findClosestNonOverlappingCenter(wantedCenter, newW, newH, rot, id)
+  const startCenterTransform = { x: item.x + item.w / 2, y: item.y + item.h / 2 }
+  const center = findClosestNonOverlappingCenter(wantedCenter, newW, newH, rot, id, startCenterTransform)
   if (!center) {
     // No free spot found — revert to previous size/position
     node.scaleX(1)
