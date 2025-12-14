@@ -52,7 +52,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
   const windows = ref<Array<{ edgeIndex: number; t1: number; t2: number }>>([])  
   const windowSelection = ref<{ edgeIndex: number; t: number } | null>(null)
   // Store doors as edge-relative fractions (t1,t2 in [0,1]) so they follow wall geometry
- const doors = ref<Array<{ edgeIndex: number; t1: number; t2: number; direction?: 'inside' | 'outside' }>>([])    
+  const doors = ref<Array<{ edgeIndex: number; t1: number; t2: number; direction?: 'inside' | 'outside' }>>([])    
   const doorSelection = ref<{ edgeIndex: number; t: number } | null>(null)
   // Piirab väärtuse vahemikku [min, max]
   function clamp(v: number, min: number, max: number) {
@@ -104,6 +104,8 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
   // Lähtestab toakuju vaikimisi ristkülikuks
   function resetShape() {
     setShape('rectangle')
+    clearDoors()
+    clearWindows()
   }
 
   // Seab toakuju ning uuendab nurkade koordinaadid

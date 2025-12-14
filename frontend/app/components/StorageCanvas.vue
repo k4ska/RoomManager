@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, nextTick } from 'vue'
 import { useRoomShapeStore } from '~/stores/roomShape'
 import { useStorageStore, type StorageType } from '~/stores/storageStore'
 
@@ -18,6 +18,7 @@ const MIN = 30 // minimum side length in pixels
 const PADDING = 4 //emoji ümber ruum
 const WALL_MARGIN = 2 // minimum distance from walls in pixels
 const DELETE_BTN_SIZE = 24 // size of delete button
+const VISUAL_GRID_PX = 40 // visual grid cell size in pixels (fixed)
 
 // Tagastab väärtuse piiratud vahemikus [min, max]
 function clampValue(v: number, min: number, max: number) {
@@ -117,6 +118,50 @@ function capPointsAt(p: {x:number,y:number}, nx: number, ny: number, capLen: num
   return [p.x - nx * half, p.y - ny * half, p.x + nx * half, p.y + ny * half]
 }
 
+// Grid lines visible inside the room only (clipped to room polygon)
+const gridLines = computed(() => {
+  const spacing = VISUAL_GRID_PX
+  const w = room.stage.width
+  const h = room.stage.height
+  const lines: Array<[number,number,number,number]> = []
+  for (let x = 0; x <= w; x += spacing) lines.push([x, 0, x, h])
+  for (let y = 0; y <= h; y += spacing) lines.push([0, y, w, y])
+  return lines
+})
+
+function roomClipFunc(ctx: any) {
+  const pts = room.points
+  if (!pts || pts.length === 0) return
+  ctx.beginPath()
+  ctx.moveTo(pts[0].x, pts[0].y)
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
+  ctx.closePath()
+}
+
+const gridLabel = computed(() => {
+  const spacingPx = VISUAL_GRID_PX
+  const pxPerMeter = Math.max(1, Math.floor(room.metricsScale || 40))
+  const metersPerCell = spacingPx / (pxPerMeter || 1)
+  const metersText = Math.abs(Math.round(metersPerCell) - metersPerCell) < 1e-6 ? `${Math.round(metersPerCell)}` : `${metersPerCell.toFixed(2)}`
+  return `1 ruudu külg = ${metersText} m`
+})
+
+const GRID_LABEL_PADDING = 8
+const GRID_LABEL_FONT_SIZE = 13
+
+const gridLabelSize = computed(() => {
+  // measure text width using canvas measureText for tight box sizing
+  if (typeof document === 'undefined') return { width: 140, height: 26, textWidth: 120 }
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')!
+  ctx.font = `${GRID_LABEL_FONT_SIZE}px Arial`
+  const metrics = ctx.measureText(gridLabel.value)
+  const textWidth = Math.ceil(metrics.width)
+  const width = textWidth + GRID_LABEL_PADDING * 2
+  const height = GRID_LABEL_FONT_SIZE + GRID_LABEL_PADDING
+  return { width, height, textWidth }
+})
+
 // Map room.windows (edge-relative) to real coordinates so windows follow walls
 const windowsWithPoints = computed(() => {
   try {
@@ -205,10 +250,50 @@ const doorsWithPoints = computed(() => {
 // Kontrollib, kas pööratud ristkülik on täielikult ruumi sees ja eemale seintest
 function isRectFullyInsideRoom(x: number, y: number, w: number, h: number, rot: number) {
   const corners = getRectCornersFromTopLeft(x, y, w, h, rot)
+  // 1) All rectangle corners must be strictly inside the polygon and away from walls
   for (const c of corners) {
     if (!isPointInsidePolygon(c.x, c.y, room.points)) return false
     if (getDistanceToPolygon(c.x, c.y, room.points) < WALL_MARGIN) return false
   }
+
+  // 2) None of the rectangle edges must intersect any room edge (catches cases where
+  //    all corners are inside but an edge passes through a concavity or opening)
+  function orient(a: {x:number,y:number}, b: {x:number,y:number}, c: {x:number,y:number}) {
+    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+  }
+  function onSegment(a: {x:number,y:number}, b: {x:number,y:number}, p: {x:number,y:number}) {
+    return Math.min(a.x, b.x) - 1e-9 <= p.x && p.x <= Math.max(a.x, b.x) + 1e-9 && Math.min(a.y, b.y) - 1e-9 <= p.y && p.y <= Math.max(a.y, b.y) + 1e-9
+  }
+  function segmentsIntersect(a: {x:number,y:number}, b: {x:number,y:number}, c: {x:number,y:number}, d: {x:number,y:number}) {
+    const o1 = orient(a, b, c)
+    const o2 = orient(a, b, d)
+    const o3 = orient(c, d, a)
+    const o4 = orient(c, d, b)
+    if (o1 === 0 && onSegment(a, b, c)) return true
+    if (o2 === 0 && onSegment(a, b, d)) return true
+    if (o3 === 0 && onSegment(c, d, a)) return true
+    if (o4 === 0 && onSegment(c, d, b)) return true
+    return (o1 > 0) !== (o2 > 0) && (o3 > 0) !== (o4 > 0)
+  }
+
+  // rectangle edges
+  const rectEdges: Array<[{x:number,y:number},{x:number,y:number}]> = []
+  for (let i = 0; i < 4; i++) {
+    const a = corners[i]
+    const b = corners[(i + 1) % 4]
+    rectEdges.push([a, b])
+  }
+
+  // room edges
+  for (const [ra, rb] of rectEdges) {
+    for (let i = 0; i < room.points.length; i++) {
+      const j = (i + 1) % room.points.length
+      const pa = room.points[i]
+      const pb = room.points[j]
+      if (segmentsIntersect(ra, rb, pa, pb)) return false
+    }
+  }
+
   return true
 }
 
@@ -255,6 +340,69 @@ function findClosestCenterInsideRoom(wantedCenter: { x: number; y: number }, w: 
   }
 
   return { x: roomCenter.x, y: roomCenter.y }
+}
+
+// --- Collision helpers ---
+function rectAABB(x: number, y: number, w: number, h: number, rot: number) {
+  const corners = getRectCornersFromTopLeft(x, y, w, h, rot)
+  let minX = Number.POSITIVE_INFINITY, minY = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY, maxY = Number.NEGATIVE_INFINITY
+  for (const c of corners) {
+    if (c.x < minX) minX = c.x
+    if (c.y < minY) minY = c.y
+    if (c.x > maxX) maxX = c.x
+    if (c.y > maxY) maxY = c.y
+  }
+  return { minX, minY, maxX, maxY }
+}
+
+function aabbOverlap(a: { minX: number; minY: number; maxX: number; maxY: number }, b: { minX: number; minY: number; maxX: number; maxY: number }) {
+  return !(a.maxX <= b.minX || a.minX >= b.maxX || a.maxY <= b.minY || a.minY >= b.maxY)
+}
+
+function isOverlappingAny(x: number, y: number, w: number, h: number, rot: number, ignoreId?: number) {
+  const a = rectAABB(x, y, w, h, rot)
+  for (const it of storage.items) {
+    if (ignoreId && it.id === ignoreId) continue
+    const b = rectAABB(it.x, it.y, it.w, it.h, it.rotation || 0)
+    if (aabbOverlap(a, b)) return true
+  }
+  return false
+}
+
+// Check whether a rectangular object can move along a straight path from start to end
+// (removed) pathIsClear - reverted to simpler placement logic
+
+// (removed) sweptIsClear - reverting to simpler behavior
+
+// Find nearest center that is inside room and doesn't overlap existing items.
+function findClosestNonOverlappingCenter(wantedCenter: { x: number; y: number }, w: number, h: number, rot: number, ignoreId?: number) {
+  // If wanted center is valid, return it
+  const topLeft = { x: wantedCenter.x - w / 2, y: wantedCenter.y - h / 2 }
+  if (isRectFullyInsideRoom(topLeft.x, topLeft.y, w, h, rot) && !isOverlappingAny(topLeft.x, topLeft.y, w, h, rot, ignoreId)) {
+    return wantedCenter
+  }
+
+  // Spiral search around wanted center
+  const maxRadius = 1000
+  const step = Math.max(8, Math.min(w, h) / 2)
+  for (let r = step; r <= maxRadius; r += step) {
+    const steps = Math.max(12, Math.floor((2 * Math.PI * r) / step))
+    for (let i = 0; i < steps; i++) {
+      const angle = (i / steps) * Math.PI * 2
+      const cx = wantedCenter.x + Math.cos(angle) * r
+      const cy = wantedCenter.y + Math.sin(angle) * r
+      const tx = cx - w / 2
+      const ty = cy - h / 2
+      if (!isRectFullyInsideRoom(tx, ty, w, h, rot)) continue
+      if (isOverlappingAny(tx, ty, w, h, rot, ignoreId)) continue
+      return { x: cx, y: cy }
+    }
+  }
+
+  // Fallback: place at snapped center inside room (may overlap)
+  const snapped = snapRectInsideRoom(topLeft.x, topLeft.y, w, h, rot)
+  return { x: snapped.x + w / 2, y: snapped.y + h / 2 }
 }
 
 // Deletes an item
@@ -317,7 +465,11 @@ onMounted(() => {
     const id = await storage.addUnit(type, x, y, emoji, name)
     const item = storage.items.find(i => i.id === id)!
     const pos = snapRectInsideRoom(item.x, item.y, item.w, item.h, item.rotation)
-    await storage.updatePos(id, pos.x, pos.y)
+    // ensure we don't place on top of existing items
+    const wantedCenter = { x: pos.x + item.w / 2, y: pos.y + item.h / 2 }
+      const center = findClosestNonOverlappingCenter(wantedCenter, item.w, item.h, item.rotation || 0, id)
+      const finalPos = { x: center.x - item.w / 2, y: center.y - item.h / 2 }
+      await storage.updatePos(id, finalPos.x, finalPos.y)
     selectedId.value = id
     selectedIds.value = [id]
     attachTransformer()
@@ -334,6 +486,21 @@ onMounted(() => {
 function detachTransformer() {
   const tr = transformerRef.value?.getNode?.()
   if (tr) tr.nodes([])
+  // Re-enable children listening for all unit groups so they remain selectable
+  try {
+    const layer = layerRef.value?.getNode?.()
+    if (layer) {
+      for (const it of storage.items) {
+        const node = layer.findOne(`#unit-${it.id}`)
+        if (node && node.getChildren) {
+          const children = node.getChildren()
+          for (const c of children) {
+            try { c.listening(true) } catch (e) {}
+          }
+        }
+      }
+    }
+  } catch (e) {}
 }
 
 // Seob transformer’i valitud sõlmega
@@ -343,10 +510,18 @@ function attachTransformer(id?: number) {
   if (!layer || !tr) return
   const node = layer.findOne(`#unit-${selectedId.value}`)
   if (node) {
+    // Always attach transformer explicitly to the group node
     tr.nodes([node])
-    tr.keepRatio(true)
+    tr.keepRatio(false)
     tr.moveToTop()
     layer.draw()
+    // Ensure children are not individually listening to events
+    try {
+      const children = node.getChildren ? node.getChildren() : []
+      for (const c of children) {
+        c.listening(false)
+      }
+    } catch (e) {}
   }
 }
 
@@ -404,16 +579,22 @@ function onRectClick(id: number, evt: {evt: MouseEvent}) {
 }
 
 // Uuendab üksuse asukohta peale lohistamise lõppu
-function onDragEnd(id: number, e: {target:any}, item: any) {
+async function onDragEnd(id: number, e: {target:any}, item: any) {
   const node = e.target
   const cx = node.x()
   const cy = node.y()
   const x = cx - item.w / 2
   const y = cy - item.h / 2
   const pos = snapRectInsideRoom(x, y, item.w, item.h, item.rotation)
-  node.x(pos.x + item.w / 2)
-  node.y(pos.y + item.h / 2)
-  storage.updatePos(id, pos.x, pos.y)
+  // Find nearest non-overlapping center (ignore this item)
+  const wantedCenter = { x: pos.x + item.w / 2, y: pos.y + item.h / 2 }
+  const center = findClosestNonOverlappingCenter(wantedCenter, item.w, item.h, item.rotation || 0, id)
+  const finalPos = { x: center.x - item.w / 2, y: center.y - item.h / 2 }
+    node.x(finalPos.x + item.w / 2)
+    node.y(finalPos.y + item.h / 2)
+    await storage.updatePos(id, finalPos.x, finalPos.y)
+    await nextTick()
+    attachTransformer(id)
 }
 
 // Jalgib reaalajas, et suurendatav yksus ei lahkuks ruumist
@@ -421,36 +602,61 @@ function onTransform(id: number, e: any) {
   const node = e.target
   const item = storage.items.find(i => i.id === id)
   if (!item) return
-  const scale = node.scaleX() || 1
-  const side = Math.max(MIN, item.w * scale)
+  // Allow independent scaleX/scaleY for rectangular resize
+  const scaleX = node.scaleX() || 1
+  const scaleY = node.scaleY() || 1
+  const newW = Math.max(MIN, item.w * scaleX)
+  const newH = Math.max(MIN, item.h * scaleY)
   const rot = ((node.rotation() % 360) + 360) % 360
-  const x = node.x() - side / 2
-  const y = node.y() - side / 2
-  if (!isRectFullyInsideRoom(x, y, side, side, rot)) {
-    const prev = (node as any)._rmLastScale ?? 1
-    node.scaleX(prev)
-    node.scaleY(prev)
+  const x = node.x() - newW / 2
+  const y = node.y() - newH / 2
+  if (!isRectFullyInsideRoom(x, y, newW, newH, rot)) {
+    const prevX = (node as any)._rmLastScaleX ?? 1
+    const prevY = (node as any)._rmLastScaleY ?? 1
+    node.scaleX(prevX)
+    node.scaleY(prevY)
     return
   }
-  (node as any)._rmLastScale = scale
+  ;(node as any)._rmLastScaleX = scaleX
+  ;(node as any)._rmLastScaleY = scaleY
 }
 
 // Uuendab suuruse ja pöördenurga peale transformatsiooni lõppu
-function onTransformEnd(id: number, e: any) {
+async function onTransformEnd(id: number, e: any) {
   const node = e.target
-  const scale = node.scaleX() || 1
+  const scaleX = node.scaleX() || 1
+  const scaleY = node.scaleY() || 1
   const item = storage.items.find(i => i.id === id)!
-  const side = Math.max(MIN, item.w * scale)
+  const newW = Math.max(MIN, item.w * scaleX)
+  const newH = Math.max(MIN, item.h * scaleY)
   node.scaleX(1)
   node.scaleY(1)
-  ;(node as any)._rmLastScale = 1
+  ;(node as any)._rmLastScaleX = 1
+  ;(node as any)._rmLastScaleY = 1
   const rot = ((node.rotation() % 360) + 360) % 360
-  const x = node.x() - side / 2
-  const y = node.y() - side / 2
-  const pos = snapRectInsideRoom(x, y, side, side, rot)
-  node.x(pos.x + side / 2)
-  node.y(pos.y + side / 2)
-  storage.updateUnit(id, { x: pos.x, y: pos.y, w: side, h: side, rotation: rot })
+  const x = node.x() - newW / 2
+  const y = node.y() - newH / 2
+  let pos = snapRectInsideRoom(x, y, newW, newH, rot)
+  // ensure no overlap after transform (ignore this item)
+  const wantedCenter = { x: pos.x + newW / 2, y: pos.y + newH / 2 }
+  const startCenterTransform = { x: item.x + item.w / 2, y: item.y + item.h / 2 }
+  const center = findClosestNonOverlappingCenter(wantedCenter, newW, newH, rot, id, startCenterTransform)
+  if (!center) {
+    // No free spot found — revert to previous size/position
+    node.scaleX(1)
+    node.scaleY(1)
+    node.x(item.x + item.w / 2)
+    node.y(item.y + item.h / 2)
+    // ensure storage remains unchanged
+    storage.updateUnit(id, { x: item.x, y: item.y, w: item.w, h: item.h, rotation: item.rotation || 0 })
+    return
+  }
+  pos = { x: center.x - newW / 2, y: center.y - newH / 2 }
+  node.x(pos.x + newW / 2)
+  node.y(pos.y + newH / 2)
+  await storage.updateUnit(id, { x: pos.x, y: pos.y, w: newW, h: newH, rotation: rot })
+  await nextTick()
+  attachTransformer(id)
 }
 </script>
 
@@ -469,6 +675,36 @@ function onTransformEnd(id: number, e: any) {
             height: room.stage.height,
             fill: '#0b1222'
           }" @mousedown="clearSelection" />
+
+        <!-- Grid clipped to room polygon -->
+        <v-group :config="{ clipFunc: roomClipFunc }">
+          <template v-for="(ln, idx) in gridLines" :key="'grid-'+idx">
+            <v-line :config="{ points: ln, stroke: '#1f2937', strokeWidth: 1, listening: false }" />
+          </template>
+        </v-group>
+
+        <!-- Grid size label (top-right) - tight fit -->
+        <v-group :config="{ x: 0, y: 0 }">
+          <v-rect :config="{
+              x: room.stage.width - gridLabelSize.width - 8,
+              y: 8,
+              width: gridLabelSize.width,
+              height: gridLabelSize.height,
+              fill: 'rgba(15,23,42,0.7)',
+              cornerRadius: 6,
+              listening: false
+            }" />
+          <v-text :config="{
+              x: room.stage.width - gridLabelSize.width - 8 + GRID_LABEL_PADDING,
+              y: 8 + Math.floor(GRID_LABEL_PADDING/2),
+              width: gridLabelSize.width - GRID_LABEL_PADDING * 2,
+              text: gridLabel,
+              fontSize: GRID_LABEL_FONT_SIZE,
+              fill: '#e5e7eb',
+              align: 'right',
+              listening: false
+            }" />
+        </v-group>
 
         <v-line
           :points="room.points.flatMap(p => [p.x, p.y])"
@@ -544,11 +780,11 @@ function onTransformEnd(id: number, e: any) {
                 const wantedCenter = { x: pos.x, y: pos.y }
                 const tx = wantedCenter.x - item.w/2
                 const ty = wantedCenter.y - item.h/2
-
+                // Allow dragging freely anywhere inside the room (do not block over other items).
                 if (isRectFullyInsideRoom(tx, ty, item.w, item.h, item.rotation)) {
                   return wantedCenter
                 }
-
+                // If outside, find closest center that is fully inside (but may overlap); collisions resolved on drop
                 const validCenter = findClosestCenterInsideRoom(wantedCenter, item.w, item.h, item.rotation)
                 return validCenter
               }
@@ -575,10 +811,10 @@ function onTransformEnd(id: number, e: any) {
             <v-image
               v-if="isImageEmoji(item.emoji)"
               :config="{
-                x: -Math.min(item.w, item.h) * 0.7 / 2,
-                y: -Math.min(item.w, item.h) * 0.7 / 2,
-                width: Math.min(item.w, item.h) * 0.7,
-                height: Math.min(item.w, item.h) * 0.7,
+                x: -item.w * 0.8 / 2,
+                y: -item.h * 0.8 / 2,
+                width: item.w * 0.8,
+                height: item.h * 0.8,
                 image: getImage(item.emoji) || undefined,
                 listening: false
               }"
@@ -648,23 +884,25 @@ function onTransformEnd(id: number, e: any) {
           ref="transformerRef"
           :config="{
             rotateEnabled: true,
-            enabledAnchors: ['top-left','top-right','bottom-left','bottom-right'],
+            // allow resizing from all sides and corners (rectangular resize)
+            enabledAnchors: ['top-left','top-center','top-right','middle-left','middle-right','bottom-left','bottom-center','bottom-right'],
             boundBoxFunc: (oldBox:any, newBox:any) => {
               const rawWidth = Math.abs(newBox.width)
               const rawHeight = Math.abs(newBox.height)
-              const side = Math.max(MIN, Math.max(rawWidth, rawHeight))
+              const width = Math.max(MIN, rawWidth)
+              const height = Math.max(MIN, rawHeight)
               const centerX = newBox.x + (newBox.width / 2)
               const centerY = newBox.y + (newBox.height / 2)
-              const topLeftX = centerX - side / 2
-              const topLeftY = centerY - side / 2
+              const topLeftX = centerX - width / 2
+              const topLeftY = centerY - height / 2
               const rotation = typeof newBox.rotation === 'number' ? newBox.rotation : (oldBox.rotation || 0)
-              // Takistab, et kasutaja ei venitaks yksust ruumi piiridest valja
-              if (!isRectFullyInsideRoom(topLeftX, topLeftY, side, side, rotation)) {
+              // Prevent user from resizing unit outside room bounds
+              if (!isRectFullyInsideRoom(topLeftX, topLeftY, width, height, rotation)) {
                 return oldBox
               }
               const widthSign = newBox.width >= 0 ? 1 : -1
               const heightSign = newBox.height >= 0 ? 1 : -1
-              return { ...newBox, width: widthSign * side, height: heightSign * side }
+              return { ...newBox, width: widthSign * width, height: heightSign * height }
             }
           }"
         />

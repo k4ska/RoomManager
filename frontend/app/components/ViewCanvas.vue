@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useRoomShapeStore } from '~/stores/roomShape'
 import { useStorageStore } from '~/stores/storageStore'
 
@@ -12,8 +12,55 @@ const hoverId = ref<number | null>(null)
 const EMOJI_SIZE = 20
 const imageCache = new Map<string, HTMLImageElement | null>()
 const highlightSet = computed(() => new Set(props.highlightIds ?? []))
+const inUseNotifications = ref<{id: number, text: string}[]>([])
 
-// Helpers for windows rendering
+const updateInUseNotification = () => {
+  const unitsWithInUse = storage.items.filter(item => {
+    const contents = item.contents || []
+    return contents.some(content => (content.inUse || 0) > 0)
+  })
+
+  const notifications = unitsWithInUse.slice(0, 3).map(item => {
+    const contents = item.contents || []
+    const inUseItems = contents.filter(content => (content.inUse || 0) > 0)
+    let emoji = '📦'
+    if (item.emoji) {
+      if (isImageEmoji(item.emoji)) {
+        emoji = '🖼️'
+      } else {
+        emoji = item.emoji
+      }
+    }
+   
+    const shownItems = inUseItems.slice(0, 2)
+    const extraItems = inUseItems.length - 2
+    let itemsText = shownItems.map(content =>
+      `  ⚠️ Tagasta ${content.name || 'ese'} (x${content.inUse || 0})`
+    ).join('\n')
+   
+    if (extraItems > 0) {
+      itemsText += `\n  ... +${extraItems} veel`
+    }
+   
+    const text = `${emoji} ${item.name || 'Mööbel'}\n${itemsText}`
+    return { id: item.id, text }
+  })
+  
+  inUseNotifications.value = notifications
+}
+
+const handleNotificationClick = (unitId: number) => {
+  const unit = storage.items.find(i => i.id === unitId)
+  if (unit && unit.contents.some(c => (c.inUse || 0) > 0)) {
+    const firstInUseIndex = unit.contents.findIndex(c => (c.inUse || 0) > 0)
+    storage.highlightedInUse = { unitId, itemIndex: firstInUseIndex }
+    emit('select', unitId)
+  }
+}
+
+watch(() => storage.items, updateInUseNotification, { deep: true })
+onMounted(updateInUseNotification)
+
 function getWindowPerp(p1: {x:number,y:number}, p2: {x:number,y:number}) {
   const dx = p2.x - p1.x
   const dy = p2.y - p1.y
@@ -51,14 +98,13 @@ const doorsWithPoints = computed(() => {
       const a = room.points[d.edgeIndex]
       const b = room.points[(d.edgeIndex + 1) % room.points.length]
       if (!a || !b) return { ...d, p1: { x: 0, y: 0 }, p2: { x: 0, y: 0 }, index: idx }
-      
+     
       const p1 = { x: a.x + (b.x - a.x) * (d.t1 ?? 0), y: a.y + (b.y - a.y) * (d.t1 ?? 0) }
       const p2 = { x: a.x + (b.x - a.x) * (d.t2 ?? 0), y: a.y + (b.y - a.y) * (d.t2 ?? 0) }
 
       const edgePerp = getWindowPerp(p1, p2)
       const capLen = 18
 
-      // SIIN: arvesta suunda
       const isInside = (d.direction || room.doorDirection) === 'inside'
       const nx = isInside ? edgePerp.nx : -edgePerp.nx
       const ny = isInside ? edgePerp.ny : -edgePerp.ny
@@ -106,7 +152,6 @@ const doorsWithPoints = computed(() => {
   }
 })
 
-
 function isImageEmoji(value: string | null | undefined) {
   return !!value && (value.startsWith('data:image') || value.startsWith('http'))
 }
@@ -122,12 +167,18 @@ function getImage(value: string | null | undefined) {
   return imageCache.get(value!) || null
 }
 
-// Builds a short multi-line summary of unit contents
-function linesFor(item: { contents?: { name: string; quantity: number }[] }) {
+function linesFor(item: { contents?: { name: string; quantity: number; inUse?: number }[] }) {
   const items = item.contents ?? []
   if (!items.length) return 'Tühi'
   const max = 3
-  const shown = items.slice(0, max).map(x => `${x.name} × ${x.quantity}`)
+  const shown = items.slice(0, max).map(x => {
+    const inUse = x.inUse || 0
+    const available = (x.quantity || 0) - inUse
+    if (inUse === 0) {
+      return `${x.name}: ${available}/${x.quantity}`
+    }
+    return `${x.name}: ${available}/${x.quantity} (${inUse} kasutuses)`
+  })
   const extra = items.length - shown.length
   return extra > 0 ? shown.concat([`+${extra} veel`]).join('\n') : shown.join('\n')
 }
@@ -138,160 +189,218 @@ function isHighlighted(id: number) {
 </script>
 
 <template>
-  <div class="canvas-wrap">
-    <v-stage :config="{
-          width: room.stage.width,
-          height: room.stage.height
-        }">
-      <v-layer>
-        <v-rect :config="{
+  <div class="layout-container">
+    <!-- RUUM vasakul -->
+    <div class="canvas-wrap">
+      <v-stage :config="{
+        width: room.stage.width,
+        height: room.stage.height
+      }">
+        <v-layer>
+          <v-rect :config="{
             x: 0,
             y: 0,
             width: room.stage.width,
             height: room.stage.height,
             fill: '#0b1222'
           }" @click="() => emit('select', null)" />
-        <v-line
-          :points="room.points.flatMap(p => [p.x, p.y])"
-          :closed="true"
-          :stroke="'#e5e7eb'"
-          :strokeWidth="2.5"
-          :fill="'rgba(16,185,129,0.06)'"
-          @click="() => emit('select', null)"
-        />
-        <!-- Render windows saved on the room (show openings and caps) -->
-        <template v-for="(win, idx) in windowsWithPoints" :key="'win' + win.index">
-          <v-line :config="{
+          <v-line
+            :points="room.points.flatMap(p => [p.x, p.y])"
+            :closed="true"
+            :stroke="'#e5e7eb'"
+            :strokeWidth="2.5"
+            :fill="'rgba(16,185,129,0.06)'"
+            @click="() => emit('select', null)"
+          />
+          <template v-for="(win, idx) in windowsWithPoints" :key="'win' + win.index">
+            <v-line :config="{
               points: [win.p1.x, win.p1.y, win.p2.x, win.p2.y],
               stroke: 'rgba(16,185,129,0.06)',
               strokeWidth: 8,
               lineCap: 'butt',
               listening: false
             }" />
-          <v-line :config="{
+            <v-line :config="{
               points: capPointsAt(win.p1, getWindowPerp(win.p1, win.p2).nx, getWindowPerp(win.p1, win.p2).ny, 14),
               stroke: '#e5e7eb', strokeWidth: 2, listening: false
             }" />
-          <v-line :config="{
+            <v-line :config="{
               points: capPointsAt(win.p2, getWindowPerp(win.p1, win.p2).nx, getWindowPerp(win.p1, win.p2).ny, 14),
               stroke: '#e5e7eb', strokeWidth: 2, listening: false
             }" />
-        </template>
-        <!-- Doors (L-junction at p1, curved line from p2 to L tip) -->
-        <template v-for="(door, idx) in doorsWithPoints" :key="'door' + door.index">
-          <!-- L-junction: vertical line along the edge from p1 -->
-          <v-line
-            :config="{
-              points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncVertEnd.x, door.lJuncVertEnd.y],
-              stroke: '#e5e7eb',
-              strokeWidth: 2,
-              listening: false
-            }"
-          />
-          <!-- L-junction: perpendicular cap going outward from p1 -->
-          <v-line
-            :config="{
-              points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncCapEnd.x, door.lJuncCapEnd.y],
-              stroke: '#e5e7eb',
-              strokeWidth: 2,
-              listening: false
-            }"
-          />
-          <!-- Curved line from p2 to the tip of L-junction (using bezier curve points, white color) -->
-          <v-line
-            :config="{
-              points: door.curvePoints,
-              stroke: '#fff',
-              strokeWidth: 2.5,
-              listening: false,
-              lineCap: 'round'
-            }"
-          />
-        </template>
-        <template v-for="item in storage.items" :key="item.id">
-          <!-- Click to select -->
-          <v-group
-            :config="{
-              x: item.x + item.w/2,
-              y: item.y + item.h/2,
-              rotation: item.rotation
-            }"
-            @click="emit('select', item.id)"
-            @mouseenter="() => hoverId = item.id"
-            @mouseleave="() => hoverId = (hoverId===item.id ? null : hoverId)"
-          >
-            <v-rect :config="{
-              x: -item.w/2,
-              y: -item.h/2,
-              width: item.w,
-              height: item.h,
-              cornerRadius: 8,
-              stroke: isHighlighted(item.id) ? '#facc15' : (hoverId===item.id ? '#93c5fd' : undefined),
-              strokeWidth: isHighlighted(item.id) ? 3 : (hoverId===item.id ? 2 : 0),
-              shadowColor: isHighlighted(item.id) ? '#facc15' : undefined,
-              shadowBlur: isHighlighted(item.id) ? 18 : 0,
-              shadowOpacity: isHighlighted(item.id) ? 0.9 : 0
-            }" />
-            <v-image
-              v-if="isImageEmoji(item.emoji)"
+          </template>
+          <template v-for="(door, idx) in doorsWithPoints" :key="'door' + door.index">
+            <v-line
               :config="{
-                x: -item.w/2,
-                y: -item.h/2,
-                width: item.w,
-                height: item.h,
-                image: getImage(item.emoji) || undefined,
+                points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncVertEnd.x, door.lJuncVertEnd.y],
+                stroke: '#e5e7eb',
+                strokeWidth: 2,
                 listening: false
               }"
             />
-            <v-text
-              v-else
+            <v-line
               :config="{
+                points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncCapEnd.x, door.lJuncCapEnd.y],
+                stroke: '#e5e7eb',
+                strokeWidth: 2,
+                listening: false
+              }"
+            />
+            <v-line
+              :config="{
+                points: door.curvePoints,
+                stroke: '#fff',
+                strokeWidth: 2.5,
+                listening: false,
+                lineCap: 'round'
+              }"
+            />
+          </template>
+          <template v-for="item in storage.items" :key="item.id">
+            <v-group
+              :config="{
+                x: item.x + item.w/2,
+                y: item.y + item.h/2,
+                rotation: item.rotation
+              }"
+              @click="emit('select', item.id)"
+              @mouseenter="() => hoverId = item.id"
+              @mouseleave="() => hoverId = (hoverId===item.id ? null : hoverId)"
+            >
+              <v-rect :config="{
                 x: -item.w/2,
                 y: -item.h/2,
                 width: item.w,
                 height: item.h,
-                align: 'center',
-                verticalAlign: 'middle',
-                text: item.emoji,
-                fontSize: Math.max(EMOJI_SIZE, Math.min(item.w, item.h) * 0.5),
-                fill: '#ffffff'
-              }"
-            />
-
-          </v-group>
-
-          <!-- Hover tooltip rendered with absolute coords so it doesn't move/rotate with the object -->
-          <v-label v-if="hoverId===item.id" :config="{
+                cornerRadius: 8,
+                stroke: isHighlighted(item.id) ? '#facc15' : (hoverId===item.id ? '#93c5fd' : undefined),
+                strokeWidth: isHighlighted(item.id) ? 3 : (hoverId===item.id ? 2 : 0),
+                shadowColor: isHighlighted(item.id) ? '#facc15' : undefined,
+                shadowBlur: isHighlighted(item.id) ? 18 : 0,
+                shadowOpacity: isHighlighted(item.id) ? 0.9 : 0
+              }" />
+              <v-image
+                v-if="isImageEmoji(item.emoji)"
+                :config="{
+                  x: -item.w/2,
+                  y: -item.h/2,
+                  width: item.w,
+                  height: item.h,
+                  image: getImage(item.emoji) || undefined,
+                  listening: false
+                }"
+              />
+              <v-text
+                v-else
+                :config="{
+                  x: -item.w/2,
+                  y: -item.h/2,
+                  width: item.w,
+                  height: item.h,
+                  align: 'center',
+                  verticalAlign: 'middle',
+                  text: item.emoji,
+                  fontSize: Math.max(EMOJI_SIZE, Math.min(item.w, item.h) * 0.5),
+                  fill: '#ffffff'
+                }"
+              />
+            </v-group>
+            <v-label v-if="hoverId===item.id" :config="{
               x: item.x + item.w + 8,
               y: item.y - 8,
               opacity: 0.95
             }">
-            <v-tag :config="{
-              fill: 'rgba(15,23,42,0.9)',
-              stroke: '#334155',
-              cornerRadius: 8,
-              shadowColor: 'black',
-              shadowBlur: 8,
-              shadowOpacity: 0.25
-            }" />
-            <v-text :config="{
-              text: (item.name ? (item.name + '\n') : '') + linesFor(item),
-              fontSize: 14,
-              padding: 8,
-              fill: '#e5e7eb',
-              lineHeight: 1.2
-            }" />
-          </v-label>
-        </template>
-      </v-layer>
-    </v-stage>
+              <v-tag :config="{
+                fill: 'rgba(15,23,42,0.9)',
+                stroke: '#334155',
+                cornerRadius: 8,
+                shadowColor: 'black',
+                shadowBlur: 8,
+                shadowOpacity: 0.25
+              }" />
+              <v-text :config="{
+                text: (item.name ? (item.name + '\n') : '') + linesFor(item),
+                fontSize: 14,
+                padding: 8,
+                fill: '#e5e7eb',
+                lineHeight: 1.2
+              }" />
+            </v-label>
+          </template>
+        </v-layer>
+      </v-stage>
+    </div>
+
+    <!-- MÄRGUANDED paremal -->
+    <div class="notifications-panel">
+      <div
+        v-for="(notif, index) in inUseNotifications"
+        :key="notif.id"
+        class="in-use-notification"
+        :style="{ '--notif-index': index }"
+        @click="handleNotificationClick(notif.id)"
+      >
+        {{ notif.text }}
+      </div>
+    </div>
   </div>
-  </template>
+</template>
 
 <style scoped>
-.canvas-wrap { 
-  display: flex; 
-  justify-content: center; 
+.layout-container {
+  display: flex;
+  gap: 20px;
+  width: 100%;
+  padding: 20px;
+  align-items: flex-start;
+}
+
+.canvas-wrap {
+  flex: 1;
+  max-width: 80vw;
+}
+
+.notifications-panel {
+  flex-shrink: 0;
+  width: 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.in-use-notification {
+  background: rgba(234, 179, 8, 0.95);
+  color: white;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 10px 25px rgba(234, 179, 8, 0.3);
+  z-index: 1000;
+  max-width: 170px;
+  max-height: 85px;
+  backdrop-filter: blur(10px);
+  white-space: pre-line;
+  cursor: pointer;
+  user-select: none;
+  overflow: hidden;
+  line-height: 1.15;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+}
+
+.in-use-notification:hover {
+  background: rgba(202, 138, 4, 0.95);
+  transform: scale(1.02);
+}
+
+.notifications-panel :deep(.in-use-notification) {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.95; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.02); }
 }
 </style>
-

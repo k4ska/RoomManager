@@ -1,3 +1,53 @@
+<template>
+  <UModal v-model:open="open" title="Muuda mööbli nime ja sisu" :ui="{ footer: 'justify-end' }">
+    <template #body>
+      <div>
+        <div class="mb-4">
+          <UInput v-model="unitName" label="Üksuse nimi" placeholder="Mööbli nimi" />
+        </div>
+        
+        <div class="list">
+          <div v-for="(row, i) in rows" :key="i" class="row" :class="{ 'highlight-inuse': highlightedRows.has(i) }">
+            <UInput v-model="row.name" placeholder="Eseme nimi" />
+            
+            <div class="qty-wrap">
+              <UButton size="xs" variant="outline" @click="dec(i)">-</UButton>
+              <UInput v-model.number="row.quantity" type="number" class="qty" :min="1" />
+              <UButton size="xs" variant="outline" @click="inc(i)">+</UButton>
+            </div>
+
+            <div class="inuse-col">
+              <div class="inuse-label">Kasutuses</div>
+              <div class="inuse-wrap">
+                <UButton size="xs" variant="outline" @click="decInUse(i)">-</UButton>
+                <UInput 
+                  v-model.number="row.inUse" 
+                  type="number" 
+                  class="qty"
+                  :min="0"
+                  :max="row.quantity || 1"
+                />
+                <UButton size="xs" variant="outline" @click="incInUse(i)">+</UButton>
+              </div>
+            </div>
+
+            <UButton color="error" variant="outline" size="sm" @click="remove(i)">Kustuta</UButton>
+          </div>
+        </div>
+        <UAlert v-if="showNameError" color="error" title="Nimi ei saa olla tühi." />
+        <UAlert v-if="showError" color="error" title="Kogus peab olema vähemalt 1." />
+      </div>
+    </template>
+
+    <template #footer="{ close }">
+      <UButton @click="add">Lisa ese</UButton>
+      <div class="spacer" />
+      <UButton @click="close">Tühista</UButton>
+      <UButton color="success" @click="save">Salvesta</UButton>
+    </template>
+  </UModal>
+</template>
+
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useStorageStore, type StoredObject } from '~/stores/storageStore'
@@ -13,32 +63,26 @@ const rows = ref<StoredObject[]>([])
 const showError = ref(false)
 const showNameError = ref(false)
 
-// Open modal when a unit is selected (run immediately on mount)
 watch(() => props.unitId, v => { open.value = v !== null }, { immediate: true })
-// Emit close when modal is closed
 watch(open, v => { if (!v) emit('close') })
 
-// Populate form when unit changes (assume unit exists when popup is opened)
-watch(unit, (u) => {
-  // use `any` here because popup is only opened for a selected unit
-  unitName.value = (u as any).name
-  rows.value = (u as any).contents.map((x: any) => ({ ...x }))
-}, { immediate: true })
-
-// Clear name error when user types
 watch(unitName, (v) => { if (v && v.trim() !== '') showNameError.value = false })
 watch(rows, (r) => {
   const allNamesOk = r.every(x => (x.name ?? '').toString().trim() !== '')
   if (allNamesOk) showNameError.value = false
 }, { deep: true })
 
-const add = () => { rows.value.push({ name: 'Ese', quantity: 1 }) }
+const add = () => { 
+  rows.value.push({ name: 'Ese', quantity: 1, inUse: 0 }) 
+}
 const remove = (i: number) => rows.value.splice(i, 1)
+
 const inc = (i: number) => {
   const r = rows.value[i]
   if (!r) return
   r.quantity = Number.isInteger(r.quantity) ? r.quantity + 1 : 1
 }
+
 const dec = (i: number) => {
   const r = rows.value[i]
   if (!r) return
@@ -46,8 +90,38 @@ const dec = (i: number) => {
   r.quantity = Math.max(1, cur - 1)
 }
 
+const incInUse = (i: number) => {
+  const r = rows.value[i]
+  if (!r) return
+  const cur = Number.isInteger(r.inUse) ? r.inUse : 0
+  r.inUse = Math.min(r.quantity || 1, cur + 1)
+}
+
+const decInUse = (i: number) => {
+  const r = rows.value[i]
+  if (!r) return
+  const cur = Number.isInteger(r.inUse) ? r.inUse : 0
+  r.inUse = Math.max(0, cur - 1)
+}
+
+watch(rows, (newRows) => {
+  newRows.forEach((row, i) => {
+    if (row.inUse !== undefined) {
+      row.inUse = Math.max(0, Math.min(row.inUse || 0, row.quantity || 1))
+    }
+  })
+}, { deep: true })
+
+watch(unit, (u) => {
+  unitName.value = (u as any)?.name || ''
+  rows.value = (u as any)?.contents?.map((x: any) => ({ 
+    name: x.name, 
+    quantity: x.quantity, 
+    inUse: x.inUse || 0 
+  })) || []
+}, { immediate: true })
+
 const save = async () => {
-  // Validate names first: unit name and every item name must be non-empty
   showNameError.value = false
   showError.value = false
   const unitNameEmpty = !unitName.value || unitName.value.trim() === ''
@@ -59,80 +133,101 @@ const save = async () => {
 
   const valid = rows.value.every(r => Number.isInteger(r.quantity) && r.quantity >= 1)
   if (!valid) { showError.value = true; return }
-  // Assume `unit` exists because the popup only opens for a selected item
   await store.setContents(unit.value!.id, rows.value)
   await store.updateUnit(unit.value!.id, { name: unitName.value })
   await store.saveToServer()
   emit('close')
 }
+
+const highlightedRows = computed(() => {
+  if (!store.highlightedInUse?.unitId || store.highlightedInUse.unitId !== props.unitId) {
+    return new Set<number>()
+  }
+  return new Set(
+    rows.value.map((row, i) => (row.inUse || 0) > 0 ? i : -1).filter(i => i >= 0)
+  )
+})
+
 </script>
-
-<template>
-  <UModal v-model:open="open" title="Muuda mööbli nime ja sisu" :ui="{ footer: 'justify-end' }">
-    <template #body>
-      <div>
-        <div class="mb-4">
-          <UInput v-model="unitName" label="Üksuse nimi" placeholder="Mööbli nimi" />
-        </div>
-
-        <div class="list">
-          <div v-for="(row, i) in rows" :key="i" class="row">
-            <UInput v-model="row.name" placeholder="Eseme nimi" />
-
-            <div class="qty-wrap">
-              <UButton size="xs" variant="outline" @click="dec(i)">-</UButton>
-              <UInput v-model.number="row.quantity" type="number" class="qty" placeholder="Kogus" />
-              <UButton size="xs" variant="outline" @click="inc(i)">+</UButton>
-            </div>
-
-            <UButton color="error" variant="outline" @click="remove(i)">Kustuta</UButton>
-          </div>
-        </div>
-        <UAlert v-if="showNameError" color="error" title="Nimi ei saa olla tühi." />
-        <UAlert v-if="showError" color="error" title="Kogus peab olema vähemalt 1." />
-      </div>
-      
-    </template>
-
-    <template #footer="{ close }">
-      <UButton @click="add">Lisa ese</UButton>
-      <div class="spacer" />
-      <UButton @click="close">Tühista</UButton>
-      <UButton color="success" @click="save">Salvesta</UButton>
-    </template>
-  </UModal>
-</template>
 
 <style scoped>
 .list { 
   display: grid; 
-  gap: 8px; 
+  gap: 12px; 
 }
+
 .row { 
   display: grid; 
-  grid-template-columns: 1fr 200px 120px; 
+  grid-template-columns: 120px 120px 120px 62px; 
   gap: 12px; 
+  align-items: end; 
+}
+
+.qty-wrap, .inuse-wrap { 
+  display: grid; 
+  grid-template-columns: 28px 56px 28px; 
+  gap: 4px; 
   align-items: center; 
+  width: 100%;
+  position: relative;
 }
-.row.single { 
-  grid-template-columns: 1fr; 
-}
+
 .qty { 
   width: 100%; 
+  font-size: 14px;
 }
-.qty-wrap { 
-  display: grid; 
-  grid-template-columns: 36px minmax(48px,1fr) 36px; 
-  gap: 8px; 
-  align-items: center; 
-}
-.spacer { 
-  flex: 1; 
-}
-.empty { 
-  color: #9ca3af; 
-  text-align: center; 
-  padding: 24px; 
-  }
-</style>
 
+.inuse-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.inuse-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+  text-align: center;
+  margin-bottom: 1px;
+}
+
+.inuse-wrap {
+  width: 100%;
+}
+
+.row.highlight-inuse {
+  background: transparent;
+}
+
+.row.highlight-inuse .inuse-wrap::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  background: linear-gradient(90deg, rgba(234,179,8,0.25), rgba(234,179,8,0.4));
+  border: 2px solid rgba(234,179,8,0.6);
+  border-radius: 8px;
+  animation: pulse-highlight 1s infinite;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.row.highlight-inuse .inuse-wrap * {
+  position: relative;
+  z-index: 2;
+}
+
+.row.highlight-inuse .inuse-label {
+  color: #eab308;
+  font-weight: 700;
+}
+
+@keyframes pulse-highlight {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(234,179,8,0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(234,179,8,0); }
+}
+
+.spacer { flex: 1; }
+</style>

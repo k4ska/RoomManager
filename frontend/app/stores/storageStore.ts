@@ -1,18 +1,23 @@
 import { defineStore } from 'pinia'
+import { ref } from 'vue'
 
 export type StorageType = 'box' | 'cabinet' | 'shelf' | 'table' | 'drawer' | 'locker' | 'workbench'
 export type StorageKind = StorageType | 'custom' | string
 
-export interface StoredObject { name: string; quantity: number }
+export interface StoredObject { 
+  name: string; 
+  quantity: number; 
+  inUse?: number 
+}
 
 export interface StorageUnit {
   id: number
   type: StorageKind
-  x: number // top-left
-  y: number // top-left
+  x: number 
+  y: number 
   w: number
   h: number
-  rotation: number // degrees 0..359
+  rotation: number 
   emoji: string
   name?: string
   contents: StoredObject[]
@@ -27,10 +32,8 @@ export interface RoomSummary {
 
 let idSeq = 1
 
-// Use a universaalne ruut kõigile üksustele
 export const UNIT_SIZE = 56
 
-// Estonian default labels for unit types
 const LABEL: Record<StorageType, string> = {
   box: 'Kast',
   cabinet: 'Kapp',
@@ -41,7 +44,6 @@ const LABEL: Record<StorageType, string> = {
   workbench: 'Töölaud'
 }
 
-// Emoji mapping per spec
 const META: Record<StorageType, { w: number; h: number; emoji: string }> = {
   box: { w: UNIT_SIZE, h: UNIT_SIZE, emoji: '📦' },
   cabinet: { w: UNIT_SIZE, h: UNIT_SIZE, emoji: '🗄️' },
@@ -68,7 +70,6 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
-  // Teisendab backendist tulnud üksuse ja esemed kohalikuks StorageUnit-iks
   function mapUnit(u: any): StorageUnit {
     return {
       id: u.id,
@@ -80,7 +81,11 @@ export const useStorageStore = defineStore('storage', () => {
       rotation: u.rotation,
       emoji: u.emoji,
       name: u.name ?? undefined,
-      contents: (u.items || []).map((it: any) => ({ name: it.name, quantity: it.quantity }))
+      contents: (u.items || []).map((it: any) => ({ 
+        name: it.name, 
+        quantity: it.quantity, 
+        inUse: 0 
+      }))
     }
   }
 
@@ -188,7 +193,6 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
-  // Laeb aktiivse toa üksused backendist
   async function loadUnits() {
     const roomId = await ensureRoom()
     const res = await fetch(`${apiBase()}/api/rooms/${roomId}/units`, { credentials: 'include' })
@@ -198,10 +202,6 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
-  
-
-
-  // Adds a new storage unit to the canvas
   async function addUnit(type: StorageKind, x: number, y: number, emojiOverride?: string, nameOverride?: string) {
     const meta = META[type as StorageType] ?? { w: UNIT_SIZE, h: UNIT_SIZE, emoji: emojiOverride ?? '🧩' }
     const optimistic: StorageUnit = {
@@ -213,28 +213,25 @@ export const useStorageStore = defineStore('storage', () => {
       h: meta.h,
       rotation: 0,
       emoji: (emojiOverride ?? meta.emoji),
-      name: nameOverride ?? (LABEL ? LABEL[type as StorageType] : undefined),
+      name: nameOverride ?? (LABEL[type as StorageType]),
       contents: []
     }
     items.value.push(optimistic)
     return optimistic.id
   }
 
-  // Uuendab olemasolevat üksust osalise parandusega
   async function updateUnit(id: number, patch: Partial<Omit<StorageUnit, 'id' | 'type' | 'emoji'>>) {
     const it = items.value.find(i => i.id === id)
     if (!it) return
     Object.assign(it, patch)
-    // Defer server sync to saveToServer
   }
 
-  // Uuendab üksuse ainult asukohta
-  function updatePos(id: number, x: number, y: number) { return updateUnit(id, { x: Math.round(x), y: Math.round(y) }) }
+  function updatePos(id: number, x: number, y: number) { 
+    return updateUnit(id, { x: Math.round(x), y: Math.round(y) }) 
+  }
 
-  // Eemaldab üksuse ID alusel
   async function removeUnit(id: number) {
     items.value = items.value.filter(i => i.id !== id)
-    // Defer server sync to saveToServer
   }
 
   async function deleteUnit(id: number) {
@@ -253,31 +250,40 @@ export const useStorageStore = defineStore('storage', () => {
     // Defer server sync to saveToServer
   }
 
-  // Asendab üksuse sisu massiivi
   async function setContents(id: number, contents: StoredObject[]) {
     const it = items.value.find(i => i.id === id)
     if (!it) return
     it.contents = contents
-    // Defer server sync to saveToServer
   }
 
-  // Lisab üksusele ühe sisu-elemendi
   async function addContent(id: number, item?: Partial<StoredObject>) {
     const it = items.value.find(i => i.id === id)
     if (!it) return
     const obj = { name: item?.name ?? 'Ese', quantity: item?.quantity ?? 1 }
     it.contents.push(obj)
-    // Defer server sync to saveToServer
   }
 
-  // Eemaldab sisu-elemendi indeksi alusel
   async function removeContent(id: number, index: number) {
     const it = items.value.find(i => i.id === id)
     if (!it || index < 0 || index >= it.contents.length) return
     it.contents.splice(index, 1)
   }
 
-  // Salvestab praeguse üksuste pildi backendis (turvaline täielik asendus)
+  function getUnitInUseTotal(unitId: number): number {
+    const unit = items.value.find(i => i.id === unitId)
+    return unit?.contents.reduce((sum, item) => sum + (item.inUse || 0), 0) || 0
+  }
+
+  async function updateItemUsage(unitId: number, itemIndex: number, inUseCount: number) {
+    const unit = items.value.find(i => i.id === unitId)
+    if (!unit || itemIndex >= unit.contents.length) return
+    
+    const item = unit.contents[itemIndex]
+    item.inUse = Math.max(0, Math.min(inUseCount, item.quantity))
+  }
+
+  const highlightedInUse = ref<{unitId: number, itemIndex: number} | null>(null)
+
   async function saveToServer(): Promise<boolean> {
     try {
       const roomId = await ensureRoom()
@@ -303,8 +309,10 @@ export const useStorageStore = defineStore('storage', () => {
         console.error('saveToServer error', res.status, text)
         return false
       }
-      // Püüab vastust parsida kinnituseks (200 OK puhul võib keha olla tühi)
-      try { const data = JSON.parse(text); if (!(data && data.ok)) return false } catch (e) { /* backend võib tagastada tühja keha; 200 = OK */ }
+      try { 
+        const data = JSON.parse(text); 
+        if (!(data && data.ok)) return false 
+      } catch (e) { }
       return true
     } catch (e) {
       console.error('saveToServer failed', e)
@@ -319,6 +327,8 @@ export const useStorageStore = defineStore('storage', () => {
     updatePos, removeUnit,
     clear, setContents,
     addContent, removeContent,
-    saveToServer, deleteUnit
+    saveToServer, deleteUnit,
+    getUnitInUseTotal, updateItemUsage,
+    highlightedInUse
   }
 })
