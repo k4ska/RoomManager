@@ -14,11 +14,19 @@
         @click="quickAdd(item)"
         :title="item.label"
       >
-        <span class="emoji" :class="{ image: isImageEmoji(item.emoji) }">
-          <img v-if="isImageEmoji(item.emoji)" :src="item.emoji" :alt="item.label" />
-          <span v-else>{{ item.emoji }}</span>
-        </span>
-        <span class="label">{{ item.label }}</span>
+        <div class="item-main">
+          <span class="emoji" :class="{ image: isImageEmoji(item.emoji) }">
+            <img v-if="isImageEmoji(item.emoji)" :src="item.emoji" :alt="item.label" />
+            <span v-else>{{ item.emoji }}</span>
+          </span>
+          <span class="label">{{ item.label }}</span>
+        </div>
+        <button
+          v-if="item.isCustom"
+          class="delete-btn"
+          title="Kustuta"
+          @click.stop="confirmDelete(item.key)"
+        >🗑️</button>
       </div>
     </div>
     <div class="help">Lohista lõuendile või klõpsa lisamiseks.</div>
@@ -78,6 +86,16 @@
       <UButton color="success" @click="saveCustom">Salvesta</UButton>
     </template>
   </UModal>
+
+  <UModal v-model:open="deleteOpen" title="Kustuta üksus?" :ui="{ footer: 'justify-end' }">
+    <template #body>
+      <p>Seda toimingut ei saa tagasi võtta.</p>
+    </template>
+    <template #footer="{ close }">
+      <UButton variant="ghost" @click="deleteOpen=false; deleteKey=null; close()">Tühista</UButton>
+      <UButton color="error" @click="applyDelete">Kustuta</UButton>
+    </template>
+  </UModal>
 </template>
 
 <script setup lang="ts">
@@ -116,6 +134,8 @@ const showCamera = ref(false)
 const videoRef = ref<HTMLVideoElement | null>(null)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 let streamRef: MediaStream | null = null
+const deleteOpen = ref(false)
+const deleteKey = ref<string | null>(null)
 
 // Load custom items from localStorage on init
 function loadCustomItems() {
@@ -159,6 +179,18 @@ function resetForm() {
 function closeModal() {
   openModal.value = false
   resetForm()
+}
+
+function confirmDelete(key: string) {
+  deleteKey.value = key
+  deleteOpen.value = true
+}
+
+function applyDelete() {
+  if (!deleteKey.value) { deleteOpen.value = false; return }
+  customItems.value = customItems.value.filter(i => i.key !== deleteKey.value)
+  deleteKey.value = null
+  deleteOpen.value = false
 }
 
 function isImageEmoji(value: string) {
@@ -342,8 +374,10 @@ function saveCustom() {
 <style scoped>
 .sidebar {
   width: 100%;
-  max-height: calc(100vh - 140px);
-  overflow: auto;
+  max-height: calc(100vh - 220px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border: 1px solid #334155;
   border-radius: 14px;
   padding: 12px;
@@ -369,9 +403,12 @@ h3 {
   padding: 6px 10px;
   cursor: pointer;
 }
-.items { 
-  display: grid; 
-  gap: 8px; 
+.items {
+  display: grid;
+  gap: 8px;
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 6px;
 }
 .item {
   display: flex; align-items: center; gap: 10px;
@@ -381,7 +418,9 @@ h3 {
   padding: 10px 12px;
   cursor: grab;
   user-select: none;
+  justify-content: space-between;
 }
+.item-main { display: flex; align-items: center; gap: 10px; }
 .item:hover { 
   background: rgba(148,163,184,0.22); 
 }
@@ -408,6 +447,17 @@ h3 {
 .label { 
   line-height: 1.2; 
 }
+.delete-btn {
+  border: 1px solid #7f1d1d;
+  background: rgba(244,63,94,0.12);
+  color: #fca5a5;
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.item:hover .delete-btn { opacity: 1; }
 .help { 
   color: #9ca3af; 
   margin-top: 10px; 
