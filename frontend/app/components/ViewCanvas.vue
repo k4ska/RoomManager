@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useRoomShapeStore } from '~/stores/roomShape'
 import { useStorageStore } from '~/stores/storageStore'
 
@@ -12,8 +12,50 @@ const hoverId = ref<number | null>(null)
 const EMOJI_SIZE = 20
 const imageCache = new Map<string, HTMLImageElement | null>()
 const highlightSet = computed(() => new Set(props.highlightIds ?? []))
+const inUseNotifications = ref<{id: number, text: string}[]>([])
 
-// Helpers for windows rendering
+const updateInUseNotification = () => {
+  const unitsWithInUse = storage.items.filter(item => {
+    const contents = item.contents || []
+    return contents.some(content => (content.inUse || 0) > 0)
+  })
+
+  const notifications = unitsWithInUse.slice(0, 3).map(item => {
+    const contents = item.contents || []
+    const inUseItems = contents.filter(content => (content.inUse || 0) > 0)
+    let emoji = '📦'
+    if (item.emoji) {
+      if (isImageEmoji(item.emoji)) {
+        emoji = '🖼️'
+      } else {
+        emoji = item.emoji
+      }
+    }
+   
+    const shownItems = inUseItems.slice(0, 2)
+    const extraItems = inUseItems.length - 2
+    let itemsText = shownItems.map(content =>
+      `  tagasta ${content.name || 'ese'} (${content.inUse || 0})`
+    ).join('\n')
+   
+    if (extraItems > 0) {
+      itemsText += `\n  ... +${extraItems} veel`
+    }
+   
+    const text = `${emoji} ${item.name || 'Mööbel'}\n${itemsText}`
+    return { id: item.id, text }
+  })
+ 
+  inUseNotifications.value = notifications
+}
+
+const handleNotificationClick = (unitId: number) => {
+  emit('select', unitId)
+}
+
+watch(() => storage.items, updateInUseNotification, { deep: true })
+onMounted(updateInUseNotification)
+
 function getWindowPerp(p1: {x:number,y:number}, p2: {x:number,y:number}) {
   const dx = p2.x - p1.x
   const dy = p2.y - p1.y
@@ -51,14 +93,13 @@ const doorsWithPoints = computed(() => {
       const a = room.points[d.edgeIndex]
       const b = room.points[(d.edgeIndex + 1) % room.points.length]
       if (!a || !b) return { ...d, p1: { x: 0, y: 0 }, p2: { x: 0, y: 0 }, index: idx }
-      
+     
       const p1 = { x: a.x + (b.x - a.x) * (d.t1 ?? 0), y: a.y + (b.y - a.y) * (d.t1 ?? 0) }
       const p2 = { x: a.x + (b.x - a.x) * (d.t2 ?? 0), y: a.y + (b.y - a.y) * (d.t2 ?? 0) }
 
       const edgePerp = getWindowPerp(p1, p2)
       const capLen = 18
 
-      // SIIN: arvesta suunda
       const isInside = (d.direction || room.doorDirection) === 'inside'
       const nx = isInside ? edgePerp.nx : -edgePerp.nx
       const ny = isInside ? edgePerp.ny : -edgePerp.ny
@@ -106,7 +147,6 @@ const doorsWithPoints = computed(() => {
   }
 })
 
-
 function isImageEmoji(value: string | null | undefined) {
   return !!value && (value.startsWith('data:image') || value.startsWith('http'))
 }
@@ -122,12 +162,18 @@ function getImage(value: string | null | undefined) {
   return imageCache.get(value!) || null
 }
 
-// Builds a short multi-line summary of unit contents
-function linesFor(item: { contents?: { name: string; quantity: number }[] }) {
+function linesFor(item: { contents?: { name: string; quantity: number; inUse?: number }[] }) {
   const items = item.contents ?? []
   if (!items.length) return 'Tühi'
   const max = 3
-  const shown = items.slice(0, max).map(x => `${x.name} × ${x.quantity}`)
+  const shown = items.slice(0, max).map(x => {
+    const inUse = x.inUse || 0
+    const available = (x.quantity || 0) - inUse
+    if (inUse === 0) {
+      return `${x.name}: ${available}/${x.quantity}`
+    }
+    return `${x.name}: ${available}/${x.quantity} (${inUse} kasutuses)`
+  })
   const extra = items.length - shown.length
   return extra > 0 ? shown.concat([`+${extra} veel`]).join('\n') : shown.join('\n')
 }
@@ -139,18 +185,29 @@ function isHighlighted(id: number) {
 
 <template>
   <div class="canvas-wrap">
+    <div
+      v-for="(notif, index) in inUseNotifications"
+      :key="notif.id"
+      class="in-use-notification"
+      :style="{ '--notif-index': index }"
+      @click="handleNotificationClick(notif.id)"
+    >
+      {{ notif.text }}
+    </div>
+
+
     <v-stage :config="{
-          width: room.stage.width,
-          height: room.stage.height
-        }">
+        width: room.stage.width,
+        height: room.stage.height
+      }">
       <v-layer>
         <v-rect :config="{
-            x: 0,
-            y: 0,
-            width: room.stage.width,
-            height: room.stage.height,
-            fill: '#0b1222'
-          }" @click="() => emit('select', null)" />
+          x: 0,
+          y: 0,
+          width: room.stage.width,
+          height: room.stage.height,
+          fill: '#0b1222'
+        }" @click="() => emit('select', null)" />
         <v-line
           :points="room.points.flatMap(p => [p.x, p.y])"
           :closed="true"
@@ -159,7 +216,6 @@ function isHighlighted(id: number) {
           :fill="'rgba(16,185,129,0.06)'"
           @click="() => emit('select', null)"
         />
-        <!-- Render windows saved on the room (show openings and caps) -->
         <template v-for="(win, idx) in windowsWithPoints" :key="'win' + win.index">
           <v-line :config="{
               points: [win.p1.x, win.p1.y, win.p2.x, win.p2.y],
@@ -177,9 +233,7 @@ function isHighlighted(id: number) {
               stroke: '#e5e7eb', strokeWidth: 2, listening: false
             }" />
         </template>
-        <!-- Doors (L-junction at p1, curved line from p2 to L tip) -->
         <template v-for="(door, idx) in doorsWithPoints" :key="'door' + door.index">
-          <!-- L-junction: vertical line along the edge from p1 -->
           <v-line
             :config="{
               points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncVertEnd.x, door.lJuncVertEnd.y],
@@ -188,7 +242,6 @@ function isHighlighted(id: number) {
               listening: false
             }"
           />
-          <!-- L-junction: perpendicular cap going outward from p1 -->
           <v-line
             :config="{
               points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncCapEnd.x, door.lJuncCapEnd.y],
@@ -197,7 +250,6 @@ function isHighlighted(id: number) {
               listening: false
             }"
           />
-          <!-- Curved line from p2 to the tip of L-junction (using bezier curve points, white color) -->
           <v-line
             :config="{
               points: door.curvePoints,
@@ -209,7 +261,6 @@ function isHighlighted(id: number) {
           />
         </template>
         <template v-for="item in storage.items" :key="item.id">
-          <!-- Click to select -->
           <v-group
             :config="{
               x: item.x + item.w/2,
@@ -257,10 +308,7 @@ function isHighlighted(id: number) {
                 fill: '#ffffff'
               }"
             />
-
           </v-group>
-
-          <!-- Hover tooltip rendered with absolute coords so it doesn't move/rotate with the object -->
           <v-label v-if="hoverId===item.id" :config="{
               x: item.x + item.w + 8,
               y: item.y - 8,
@@ -286,12 +334,52 @@ function isHighlighted(id: number) {
       </v-layer>
     </v-stage>
   </div>
-  </template>
+</template>
 
 <style scoped>
-.canvas-wrap { 
-  display: flex; 
-  justify-content: center; 
+.canvas-wrap {
+  display: flex;
+  justify-content: center;
+  position: relative;
+}
+
+.in-use-notification {
+  position: absolute;
+  right: 16px;
+  top: calc(20px + var(--notif-index, 0) * 95px); /* ← FIKSEERITUD vahemaa 95px */
+  background: rgba(234, 179, 8, 0.95);
+  color: white;
+  padding: 10px 14px;
+  margin-bottom: 0; /* ← Eemaldatud */
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 10px 25px rgba(234, 179, 8, 0.3);
+  z-index: 1000;
+  max-width: 240px;
+  max-height: 85px;
+  backdrop-filter: blur(10px);
+  white-space: pre-line;
+  cursor: pointer;
+  user-select: none;
+  overflow: hidden;
+  line-height: 1.15;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+}
+
+.in-use-notification:hover {
+  background: rgba(202, 138, 4, 0.95);
+  transform: scale(1.02);
+}
+
+.canvas-wrap :deep(.in-use-notification) {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.95; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.02); }
 }
 </style>
-
