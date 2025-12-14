@@ -180,6 +180,8 @@ export const useStorageStore = defineStore('storage', () => {
     item.inUse = Math.max(0, Math.min(inUseCount, item.quantity))
   }
 
+  const highlightedInUse = ref<{unitId: number, itemIndex: number} | null>(null)
+
   async function saveToServer(): Promise<boolean> {
     try {
       const payload = { 
@@ -229,6 +231,7 @@ export const useStorageStore = defineStore('storage', () => {
     clear, setContents,
     addContent, removeContent,
     saveToServer, deleteUnit,
-    getUnitInUseTotal, updateItemUsage
+    getUnitInUseTotal, updateItemUsage,
+    highlightedInUse
   }
 })
