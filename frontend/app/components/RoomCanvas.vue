@@ -300,28 +300,7 @@ const doorsWithPoints = computed(() => {
 })
 
 
-// --- Simple draggable metrics panel state & helpers ---
-const panelPos = ref({ x: 40, y: 60 })
-const isDragging = ref(false)
-const dragOffset = ref({ x: 0, y: 0 })
-
-function startDragPanel(e: MouseEvent) {
-  isDragging.value = true
-  dragOffset.value = { x: e.clientX - panelPos.value.x, y: e.clientY - panelPos.value.y }
-  document.addEventListener('mousemove', moveDragPanel)
-  document.addEventListener('mouseup', stopDragPanel)
-}
-
-function moveDragPanel(e: MouseEvent) {
-  if (!isDragging.value) return
-  panelPos.value = { x: e.clientX - dragOffset.value.x, y: e.clientY - dragOffset.value.y }
-}
-
-function stopDragPanel() {
-  isDragging.value = false
-  document.removeEventListener('mousemove', moveDragPanel)
-  document.removeEventListener('mouseup', stopDragPanel)
-}
+// (panel is rendered outside the canvas-wrap; no position state required)
 
 // compute room area (shoelace) in meters^2 using store.metricsScale
 const roomAreaM2 = computed(() => {
@@ -380,7 +359,8 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
 </script>
 
 <template>
-  <div class="canvas-wrap">
+  <div class="canvas-container">
+    <div class="canvas-wrap">
     <v-stage :config="{
       width: store.stage.width,
       height: store.stage.height
@@ -618,14 +598,11 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
     </v-stage>
     <UusConfirmPopup ref="winConfirmRef" />
     <UusConfirmPopup ref="doorConfirmRef" />
+    </div>
 
-    <!-- Simple metrics panel -->
-    <div
-      v-if="store.showMetrics"
-      class="simple-metrics-panel"
-      :style="{ left: panelPos.x + 'px', top: panelPos.y + 'px' }"
-    >
-      <div class="simple-panel-header" @mousedown.prevent="startDragPanel">
+    <!-- Simple metrics panel (rendered beside the canvas) -->
+    <div v-if="store.showMetrics" class="simple-metrics-panel">
+      <div class="simple-panel-header">
         <div>Mõõdud</div>
         <button class="simple-close" @click="store.toggleShowMetrics()">×</button>
       </div>
@@ -677,9 +654,16 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
   position: relative;
 }
 
+.canvas-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 16px;
+}
+
 /* Simple metrics panel styles */
 .simple-metrics-panel {
-  position: fixed;
+  position: relative;
   width: 260px;
   background: rgba(11,18,34,0.95);
   border: 1px solid #fbbf24;
@@ -695,7 +679,7 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
   align-items:center;
   padding:8px 10px;
   border-bottom:1px solid rgba(251,191,36,0.08);
-  cursor:grab;
+  cursor:default;
   color:#fbbf24;
   font-weight:600;
 }
