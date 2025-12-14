@@ -106,9 +106,8 @@ const decInUse = (i: number) => {
 
 watch(rows, (newRows) => {
   newRows.forEach((row, i) => {
-    if (row.inUse !== undefined && unit.value) {
+    if (row.inUse !== undefined) {
       row.inUse = Math.max(0, Math.min(row.inUse || 0, row.quantity || 1))
-      store.updateItemUsage(unit.value.id, i, row.inUse)
     }
   })
 }, { deep: true })
