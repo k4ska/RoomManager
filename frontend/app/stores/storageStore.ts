@@ -23,6 +23,13 @@ export interface StorageUnit {
   contents: StoredObject[]
 }
 
+export interface RoomSummary {
+  id: number
+  name: string
+  createdAt?: string
+  updatedAt?: string
+}
+
 let idSeq = 1
 
 export const UNIT_SIZE = 56
@@ -50,10 +57,18 @@ const META: Record<StorageType, { w: number; h: number; emoji: string }> = {
 export const useStorageStore = defineStore('storage', () => {
   const items = ref<StorageUnit[]>([])
   const currentRoomId = ref<number | null>(null)
+  const rooms = ref<RoomSummary[]>([])
 
-  const runtime = (useRuntimeConfig?.() as any)
-  const publicCfg = runtime.public
-  const publicApiBase = publicCfg.apiBase
+  const ROOM_KEY = 'rm_current_room'
+
+  function apiBase() {
+    try {
+      const runtime = useRuntimeConfig()
+      return (runtime as any)?.public?.apiBase || process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
+    } catch {
+      return process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:4000'
+    }
+  }
 
   function mapUnit(u: any): StorageUnit {
     return {
@@ -74,28 +89,113 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
+  function loadStoredRoomId(): number | null {
+    if (typeof localStorage === 'undefined') return null
+    const raw = localStorage.getItem(ROOM_KEY)
+    const parsed = raw ? parseInt(raw, 10) : NaN
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  function persistRoomId(id: number | null) {
+    if (typeof localStorage === 'undefined') return
+    if (id == null) localStorage.removeItem(ROOM_KEY)
+    else localStorage.setItem(ROOM_KEY, String(id))
+  }
+
+  // Veendub, et kasutajal on tuba; vajadusel loob uue
   async function ensureRoom(): Promise<number> {
     if (currentRoomId.value) return currentRoomId.value
-    const res = await fetch(`${publicApiBase}/api/rooms`, { credentials: 'include' })
-    const data = await res.json()
-    if (data?.ok && data.rooms?.length) {
-      currentRoomId.value = data.rooms[0].id
+    await fetchRooms()
+    const stored = loadStoredRoomId()
+    if (stored && rooms.value.some(r => r.id === stored)) {
+      currentRoomId.value = stored
+      return stored
+    }
+    if (rooms.value.length) {
+      currentRoomId.value = rooms.value[0].id
+      persistRoomId(currentRoomId.value)
       return currentRoomId.value
     }
-    const create = await fetch(`${publicApiBase}/api/rooms`, {
-      method: 'POST', 
-      credentials: 'include', 
-      headers: { 'content-type': 'application/json' }, 
-      body: JSON.stringify({ name: 'Minu tuba' })
+    const created = await createRoom('Minu tuba')
+    return created
+  }
+
+  async function fetchRooms() {
+    try {
+      const res = await fetch(`${apiBase()}/api/rooms`, { credentials: 'include' })
+      const data = await res.json()
+      if (data?.ok && Array.isArray(data.rooms)) rooms.value = data.rooms
+    } catch {}
+  }
+
+  async function createRoom(name?: string): Promise<number> {
+    const res = await fetch(`${apiBase()}/api/rooms`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: (name || 'Uus tuba').slice(0, 60) })
     })
-    const payload = await create.json()
-    currentRoomId.value = payload?.room?.id ?? null
-    return currentRoomId.value as number
+    const data = await res.json()
+    const id = data?.room?.id as number | undefined
+    if (data?.ok && id) {
+      await fetchRooms()
+      currentRoomId.value = id
+      items.value = []
+      return id
+    }
+    return await ensureRoom()
+  }
+
+  function setCurrentRoom(id: number | null) {
+    currentRoomId.value = id
+    persistRoomId(id)
+  }
+
+  async function updateRoomName(id: number, name: string) {
+    try {
+      const trimmed = (name ?? '').toString().trim().slice(0, 60)
+      if (!trimmed) return false
+      const res = await fetch(`${apiBase()}/api/rooms/${id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: trimmed })
+      })
+      const data = await res.json()
+      if (data?.ok) {
+        await fetchRooms()
+        return true
+      }
+      return false
+    } catch {
+      return false
+    }
+  }
+
+  async function deleteRoom(id: number) {
+    try {
+      const res = await fetch(`${apiBase()}/api/rooms/${id}`, { method: 'DELETE', credentials: 'include' })
+      const data = await res.json()
+      if (data?.ok) {
+        await fetchRooms()
+        if (currentRoomId.value === id) {
+          const stored = loadStoredRoomId()
+          if (stored === id) persistRoomId(null)
+          currentRoomId.value = rooms.value[0]?.id ?? null
+          items.value = []
+          if (currentRoomId.value) await loadUnits()
+        }
+        return true
+      }
+      return false
+    } catch {
+      return false
+    }
   }
 
   async function loadUnits() {
     const roomId = await ensureRoom()
-    const res = await fetch(`${publicApiBase}/api/rooms/${roomId}/units`, { credentials: 'include' })
+    const res = await fetch(`${apiBase()}/api/rooms/${roomId}/units`, { credentials: 'include' })
     const data = await res.json()
     if (data?.ok && Array.isArray(data.units)) {
       items.value = data.units.map(mapUnit)
@@ -135,17 +235,19 @@ export const useStorageStore = defineStore('storage', () => {
   }
 
   async function deleteUnit(id: number) {
-    items.value = items.value.filter(i => i.id !== id)
-    try { 
-      await fetch(`${publicApiBase}/api/units/${id}`, { 
-        method: 'DELETE', 
-        credentials: 'include' 
-      }) 
-    } catch {}
-  }
-
+  items.value = items.value.filter(i => i.id !== id)
+  try { 
+    await fetch(`${apiBase()}/api/units/${id}`, { 
+      method: 'DELETE', 
+      credentials: 'include' 
+    }) 
+  } catch {}
+}
+  // Clears all units
   async function clear() {
+    const ids = items.value.map(i => i.id)
     items.value = []
+    // Defer server sync to saveToServer
   }
 
   async function setContents(id: number, contents: StoredObject[]) {
@@ -184,25 +286,20 @@ export const useStorageStore = defineStore('storage', () => {
 
   async function saveToServer(): Promise<boolean> {
     try {
-      const payload = { 
-        units: items.value.map(u => ({
-          type: u.type,
-          x: Math.round(u.x),
-          y: Math.round(u.y),
-          w: Math.round(u.w),
-          h: Math.round(u.h),
-          rotation: Math.round(u.rotation || 0),
-          emoji: u.emoji,
-          name: u.name,
-          contents: (u.contents || []).map(c => ({ 
-            name: c.name, 
-            quantity: Math.max(1, Math.round(c.quantity || 1)),
-            inUse: c.inUse || 0
-          }))
-        })) 
-      }
-      const res = await fetch(`${publicApiBase}/api/layout`, {
-        method: 'POST',
+      const roomId = await ensureRoom()
+      const payload = { units: items.value.map(u => ({
+        type: u.type,
+        x: Math.round(u.x),
+        y: Math.round(u.y),
+        w: Math.round(u.w),
+        h: Math.round(u.h),
+        rotation: Math.round(u.rotation || 0),
+        emoji: u.emoji,
+        name: u.name,
+        contents: (u.contents || []).map(c => ({ name: c.name, quantity: Math.max(1, Math.round(c.quantity || 1)) }))
+      })) }
+      const res = await fetch(`${apiBase()}/api/rooms/${roomId}/layout`, {
+        method: 'PUT',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload)
@@ -224,8 +321,8 @@ export const useStorageStore = defineStore('storage', () => {
   }
 
   return {
-    items, currentRoomId,
-    ensureRoom, loadUnits,
+    items, currentRoomId, rooms,
+    ensureRoom, loadUnits, fetchRooms, createRoom, setCurrentRoom, updateRoomName, deleteRoom,
     addUnit, updateUnit,
     updatePos, removeUnit,
     clear, setContents,

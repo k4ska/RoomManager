@@ -4,7 +4,7 @@
       <h1>Ladustuse paigutus</h1>
       <div class="actions">
         <NuxtLink class="btn" to="/editor">Tagasi</NuxtLink>
-        <button class="btn warn" :disabled="selectedIds.length === 0" @click="removeSelected">Kustuta valitud ({{selectedIds.length}} )
+        <button class="btn warn" :disabled="selectedIds.length === 0" @click="removeSelected">Kustuta valitud ({{selectedIds.length}})
         </button>
         <button class="btn warn" :disabled="!hasItems" @click="removeAll">Kustuta kõik</button>
         <button class="btn success" @click="goView">Salvesta ja vaade</button>
@@ -15,7 +15,7 @@
       <StorageSelector />
       <div class="canvas-card">
         <div class="hint">
-          Lohista valitud objekt lõuendile. 
+          Lohista „Kast”, „Kapp” või „Riiul” lõuendile. Klõpsa objektidel, et neid valida (või tühista valik).
         </div>
         <ClientOnly>
           <StorageCanvas />
@@ -72,8 +72,8 @@ onMounted(async () => {
   ;(window as any).__rm_setSelected = setSelected
   ;(window as any).__rm_setSelectedIds = setSelectedIds
   try {
-    await shape.loadFromServer()
-    await store.ensureRoom()
+    const roomId = await store.ensureRoom()
+    await shape.loadFromServer(roomId)
     await store.loadUnits()
   } catch {}
 })
@@ -132,9 +132,8 @@ async function removeAll() {
 // Salvesta ainult (toa kuju + paigutus). Jää samale lehele
 async function saveOnly(): Promise<boolean> {
   try {
-    await shape.saveToServer()
-    // Ensure room exists and refresh local id state
-    await store.ensureRoom()
+    const roomId = await store.ensureRoom()
+    await shape.saveToServer(roomId)
     const ok = await store.saveToServer()
     if (!ok) { console.error('save failed'); return false }
     // Sync from server to reflect canonical ids after save

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { useRoomShapeStore } from '~/stores/roomShape'
+import { useStorageStore } from '~/stores/storageStore'
 import { computed, ref } from 'vue'
 import UusConfirmPopup from '~/components/uusConfirmPopup.vue'
 const store = useRoomShapeStore()
+const storageStore = useStorageStore()
 const winConfirmRef = ref<any>(null)
 const doorConfirmRef = ref<any>(null)
 
@@ -315,6 +317,23 @@ const roomAreaM2 = computed(() => {
   return area / (store.metricsScale * store.metricsScale)
 })
 
+async function persistShape() {
+  try {
+    const roomId = await storageStore.ensureRoom()
+    await store.saveToServer(roomId)
+  } catch {}
+}
+
+function onDoorDirectionChange(index: number, event: Event) {
+  const target = event.target as HTMLSelectElement
+  const newDir = target.value as 'inside' | 'outside'
+  
+  const door = { ...store.doors[index], direction: newDir }
+  store.doors.splice(index, 1, door)
+
+  persistShape()
+}
+
 function getWallPixels(edgeIndex: number) {
   const a = store.points[edgeIndex]
   const b = store.points[(edgeIndex + 1) % store.points.length]
@@ -335,6 +354,7 @@ function resizeWall(edgeIndex: number, newLengthMeters: number) {
   const nx = a.x + dx * ratio
   const ny = a.y + dy * ratio
   store.updatePoint((edgeIndex + 1) % store.points.length, nx, ny)
+  persistShape()
 }
 
 // Called when user edits wall length (meters) in panel.
@@ -617,6 +637,13 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
         <div class="row">
           <label>Ruumi pindala (m²):</label>
           <div>{{ roomAreaM2.toFixed(2) }}</div>
+        </div>
+        <div class="row">
+          <label>Uute uste suund:</label>
+          <select v-model="store.doorDirection" @change="persistShape()">
+            <option value="inside">Sisse</option>
+            <option value="outside">Välja</option>
+          </select>
         </div>
 
         <div class="doors-list">
