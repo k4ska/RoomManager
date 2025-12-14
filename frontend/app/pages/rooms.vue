@@ -59,9 +59,11 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useStorageStore } from '~/stores/storageStore'
+import { useRoomShapeStore } from '~/stores/roomShape'
 
 const store = useStorageStore()
 const router = useRouter()
+const shapeStore = useRoomShapeStore()
 const loading = ref(false)
 const error = ref('')
 
@@ -111,6 +113,8 @@ async function confirmCreate() {
     await store.fetchRooms()
     if (id) {
       store.setCurrentRoom(id)
+      shapeStore.setShape('rectangle')
+      await shapeStore.saveToServer(id)
       closeCreate()
       router.push('/editor')
       return

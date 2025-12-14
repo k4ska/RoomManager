@@ -449,6 +449,11 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
           points.value = normalizeToStage(data.shape)
         } else if (data?.ok && data.shape && Array.isArray((data.shape as any).points)) {
           points.value = normalizeToStage((data.shape as any).points)
+        } else {
+          setShape('rectangle')
+          windows.value = []
+          doors.value = []
+          doorDirection.value = 'inside'
         }
         
         // Load windows from new nested shape or top-level for backward compatibility
