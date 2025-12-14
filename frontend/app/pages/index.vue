@@ -9,15 +9,62 @@
 
     <div class="center">
       <div class="cta-group">
-        <NuxtLink class="cta-btn" to="/editor">Loo uus ruum</NuxtLink>
+        <button class="cta-btn" @click="openCreate">Loo uus ruum</button>
         <button class="cta-btn" @click="goView">Vaata oma tube</button>
       </div>
     </div>
+
+    <UModal v-model:open="createOpen" title="Loo uus tuba" :ui="{ footer: 'justify-end' }">
+      <template #body>
+        <UInput v-model="createName" label="Toa nimi" placeholder="Nt Kontor" />
+      </template>
+      <template #footer="{ close }">
+        <UButton variant="ghost" @click="closeCreate(); close()">Tühista</UButton>
+        <UButton color="primary" :loading="creating" @click="confirmCreate">Salvesta</UButton>
+      </template>
+    </UModal>
   </main>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useStorageStore } from '~/stores/storageStore'
+
 const goView = () => navigateTo('/rooms')
+const store = useStorageStore()
+const router = useRouter()
+const createOpen = ref(false)
+const createName = ref('')
+const creating = ref(false)
+
+function openCreate() {
+  createName.value = ''
+  createOpen.value = true
+}
+
+function closeCreate() {
+  createOpen.value = false
+  createName.value = ''
+}
+
+async function confirmCreate() {
+  const name = createName.value.trim()
+  if (!name) { closeCreate(); return }
+  creating.value = true
+  try {
+    const id = await store.createRoom(name)
+    await store.fetchRooms()
+    if (id) {
+      store.setCurrentRoom(id)
+      closeCreate()
+      router.push('/editor')
+      return
+    }
+  } finally {
+    creating.value = false
+  }
+}
 </script>
 
 <style scoped>

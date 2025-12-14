@@ -4,7 +4,7 @@
       <h1>Ladustuse paigutus</h1>
       <div class="actions">
         <NuxtLink class="btn" to="/editor">Tagasi</NuxtLink>
-        <button class="btn warn" :disabled="selectedIds.length === 0" @click="removeSelected">Kustuta valitud ({{selectedIds.length}} )
+        <button class="btn warn" :disabled="selectedIds.length === 0" @click="removeSelected">Kustuta valitud ({{selectedIds.length}})
         </button>
         <button class="btn warn" :disabled="!hasItems" @click="removeAll">Kustuta kõik</button>
         <button class="btn success" @click="goView">Salvesta ja vaade</button>

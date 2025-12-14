@@ -7,7 +7,7 @@
           <div class="name">Ruumihaldur</div>
         </div>
       </div>
-      <div class="room-name" v-if="roomLabel">{{ roomLabel }}</div>
+      <div class="room-name">{{ roomLabel || '' }}</div>
       <div class="actions">
         <button class="pill ghost" @click.prevent="router.push('/')">Avaleht</button>
         <button v-if="user" class="pill accent" @click="onLogout">Logi välja</button>
@@ -103,6 +103,7 @@ async function onLogout() {
   display: flex;
   align-items: center;
   gap: 10px;
+  justify-self: end;
 }
 .room-name {
   font-weight: 800;

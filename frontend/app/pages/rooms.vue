@@ -5,7 +5,7 @@
         <h1>Minu toad</h1>
         <p class="muted">Vaata olemasolevaid tube ja lisa vajadusel uus.</p>
       </div>
-      <button class="btn" @click="createRoom">Loo uus ruum</button>
+      <button class="btn" @click="openCreateModal">Loo uus ruum</button>
     </header>
 
     <section class="list">
@@ -42,6 +42,16 @@
         <UButton color="error" @click="confirmDelete">Kustuta</UButton>
       </template>
     </UModal>
+
+    <UModal v-model:open="createOpen" title="Loo uus tuba" :ui="{ footer: 'justify-end' }">
+      <template #body>
+        <UInput v-model="createName" label="Toa nimi" placeholder="Nt Kontor" />
+      </template>
+      <template #footer="{ close }">
+        <UButton variant="ghost" @click="closeCreate(); close()">Tühista</UButton>
+        <UButton color="primary" :loading="loading" @click="confirmCreate">Salvesta</UButton>
+      </template>
+    </UModal>
   </div>
 </template>
 
@@ -58,8 +68,10 @@ const error = ref('')
 const rooms = computed(() => store.rooms)
 const editOpen = ref(false)
 const deleteOpen = ref(false)
+const createOpen = ref(false)
 const targetRoom = ref<{ id: number; name: string } | null>(null)
 const editName = ref('')
+const createName = ref('')
 
 async function fetchRooms() {
   loading.value = true
@@ -74,15 +86,34 @@ async function fetchRooms() {
 }
 
 async function createRoom() {
+  openCreateModal()
+}
+
+function openCreateModal() {
+  createName.value = ''
+  createOpen.value = true
+}
+
+function closeCreate() {
+  createOpen.value = false
+  createName.value = ''
+}
+
+async function confirmCreate() {
+  const name = createName.value.trim()
+  if (!name) { closeCreate(); return }
   loading.value = true
   error.value = ''
   try {
-    const id = await store.createRoom('Uus tuba')
+    const id = await store.createRoom(name)
     await store.fetchRooms()
     if (id) {
       store.setCurrentRoom(id)
+      closeCreate()
       router.push('/editor')
+      return
     }
+    error.value = 'Uue ruumi loomine ebaõnnestus.'
   } catch {
     error.value = 'Uue ruumi loomine ebaõnnestus.'
   } finally {
