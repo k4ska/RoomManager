@@ -158,7 +158,7 @@ const highlightedRows = computed(() => {
 
 .row { 
   display: grid; 
-  grid-template-columns: 120px 120px 120px 60px; 
+  grid-template-columns: 120px 120px 120px 62px; 
   gap: 12px; 
   align-items: end; 
 }
@@ -169,6 +169,7 @@ const highlightedRows = computed(() => {
   gap: 4px; 
   align-items: center; 
   width: 100%;
+  position: relative;
 }
 
 .qty { 
@@ -198,14 +199,24 @@ const highlightedRows = computed(() => {
   background: transparent;
 }
 
-.row.highlight-inuse .inuse-wrap {
+.row.highlight-inuse .inuse-wrap::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
   background: linear-gradient(90deg, rgba(234,179,8,0.25), rgba(234,179,8,0.4));
   border: 2px solid rgba(234,179,8,0.6);
-  border-radius: 6px;
-  padding: 2px;
-  margin-right: -4px;   
-  width: calc(100% + 8px); 
+  border-radius: 8px;
   animation: pulse-highlight 1s infinite;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.row.highlight-inuse .inuse-wrap * {
+  position: relative;
+  z-index: 2;
 }
 
 .row.highlight-inuse .inuse-label {

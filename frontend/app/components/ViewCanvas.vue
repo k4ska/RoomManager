@@ -35,7 +35,7 @@ const updateInUseNotification = () => {
     const shownItems = inUseItems.slice(0, 2)
     const extraItems = inUseItems.length - 2
     let itemsText = shownItems.map(content =>
-      `  ⚠️ Tagasta ${content.name || 'ese'} (${content.inUse || 0})`
+      `  ⚠️ Tagasta ${content.name || 'ese'} (x${content.inUse || 0})`
     ).join('\n')
    
     if (extraItems > 0) {
