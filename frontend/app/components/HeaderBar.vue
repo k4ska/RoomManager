@@ -7,6 +7,7 @@
           <div class="name">Ruumihaldur</div>
         </div>
       </div>
+      <div class="room-name" v-if="roomLabel">{{ roomLabel }}</div>
       <div class="actions">
         <button class="pill ghost" @click.prevent="router.push('/')">Avaleht</button>
         <button v-if="user" class="pill accent" @click="onLogout">Logi välja</button>
@@ -18,8 +19,10 @@
 <script setup lang="ts">
 import { useRouter, useRoute } from 'vue-router'
 import { computed } from 'vue'
+import { useStorageStore } from '~/stores/storageStore'
 const route = useRoute()
 const router = useRouter()
+const storage = useStorageStore()
 
 // hide on these paths
 const excludedPaths = ['/login', '/register']
@@ -27,6 +30,11 @@ const isExcluded = computed(() => excludedPaths.includes(route.path))
 
 // access shared user state
 const user = useState<any>('user')
+const roomLabel = computed(() => {
+  if (!storage.currentRoomId) return ''
+  const room = storage.rooms.find(r => r.id === storage.currentRoomId)
+  return room?.name || ''
+})
 
 async function onLogout() {
   try {
@@ -53,9 +61,9 @@ async function onLogout() {
   max-width: none;
   margin: 0;
   padding: 14px 20px;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
 }
 .brand {
@@ -65,6 +73,7 @@ async function onLogout() {
   gap: 12px;
   cursor: pointer;
 }
+.container > .brand { justify-self: start; }
 .logo {
   width: 38px;
   height: 38px;
@@ -94,6 +103,13 @@ async function onLogout() {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+.room-name {
+  font-weight: 800;
+  color: #e5e7eb;
+  text-align: center;
+  font-size: 25px;
+  justify-self: center;
 }
 .pill {
   border: 1px solid rgba(148,163,184,0.2);

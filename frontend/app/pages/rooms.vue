@@ -129,6 +129,7 @@ function closeModals() {
 }
 
 onMounted(fetchRooms)
+onMounted(() => { store.setCurrentRoom(null) })
 </script>
 
 <style scoped>

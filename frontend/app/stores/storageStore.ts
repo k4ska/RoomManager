@@ -120,7 +120,7 @@ export const useStorageStore = defineStore('storage', () => {
     return await ensureRoom()
   }
 
-  function setCurrentRoom(id: number) {
+  function setCurrentRoom(id: number | null) {
     currentRoomId.value = id
   }
 
