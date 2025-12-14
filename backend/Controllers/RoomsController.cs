@@ -97,6 +97,7 @@ namespace backend.Controllers
         }
 
         public record CreateRoomDto(string? name);
+        public record UpdateRoomDto(string? name);
         // POST /api/rooms (loo uus tuba)
         [HttpPost("rooms")]
         public async Task<IActionResult> CreateRoom([FromBody] CreateRoomDto dto)
@@ -105,6 +106,36 @@ namespace backend.Controllers
             var room = new Room { UserId = uid.Value, Name = string.IsNullOrWhiteSpace(dto?.name) ? "Minu tuba" : dto!.name!, Shape = "[]", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
             _db.Rooms.Add(room); await _db.SaveChangesAsync();
             return StatusCode(201, new { ok = true, room = new { id = room.Id, name = room.Name } });
+        }
+
+        // PATCH /api/rooms/{roomId} (uuenda toa nime)
+        [HttpPatch("rooms/{roomId:int}")]
+        public async Task<IActionResult> PatchRoom(int roomId, [FromBody] UpdateRoomDto dto)
+        {
+            var uid = CurrentUserId(); if (uid is null) return Unauthorized(new { ok = false, error = "Unauthorized" });
+            if (dto == null || string.IsNullOrWhiteSpace(dto.name)) return BadRequest(new { ok = false, error = "name required" });
+            var room = await _db.Rooms.FirstOrDefaultAsync(r => r.Id == roomId && r.UserId == uid.Value);
+            if (room == null) return NotFound(new { ok = false, error = "Room not found" });
+            room.Name = dto.name!.Trim();
+            room.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+            return Ok(new { ok = true, room = new { id = room.Id, name = room.Name } });
+        }
+
+        // DELETE /api/rooms/{roomId} (kustuta tuba koos sisuga)
+        [HttpDelete("rooms/{roomId:int}")]
+        public async Task<IActionResult> DeleteRoom(int roomId)
+        {
+            var uid = CurrentUserId(); if (uid is null) return Unauthorized(new { ok = false, error = "Unauthorized" });
+            var room = await _db.Rooms.Include(r => r.Furniture).ThenInclude(f => f.Items).FirstOrDefaultAsync(r => r.Id == roomId && r.UserId == uid.Value);
+            if (room == null) return NotFound(new { ok = false, error = "Room not found" });
+
+            var allItems = room.Furniture.SelectMany(f => f.Items).ToList();
+            if (allItems.Count > 0) _db.Items.RemoveRange(allItems);
+            if (room.Furniture.Count > 0) _db.Furniture.RemoveRange(room.Furniture);
+            _db.Rooms.Remove(room);
+            await _db.SaveChangesAsync();
+            return Ok(new { ok = true });
         }
 
         // GET /api/rooms/{roomId}/units (toa üksused koos esemetega)

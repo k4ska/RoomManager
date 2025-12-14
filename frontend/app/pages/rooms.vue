@@ -12,11 +12,36 @@
       <div v-if="loading" class="info">Laadin tube...</div>
       <div v-else-if="error" class="info error">{{ error }}</div>
       <div v-else-if="rooms.length === 0" class="info">Ühtegi tuba pole. Lisa esimene!</div>
-      <article v-for="room in rooms" :key="room.id" class="card" @click="openRoom(room.id)">
-        <div class="name">{{ room.name }}</div>
-        <div class="meta">ID {{ room.id }}</div>
+      <article v-for="room in rooms" :key="room.id" class="card">
+        <div class="room-main" @click="openRoom(room.id)">
+          <div class="name">{{ room.name }}</div>
+        </div>
+        <div class="room-actions">
+          <button class="icon" title="Muuda nime" @click.stop="editRoom(room)">✏️</button>
+          <button class="icon danger" title="Kustuta tuba" @click.stop="removeRoom(room)">🗑️</button>
+        </div>
       </article>
     </section>
+
+    <UModal v-model:open="editOpen" title="Muuda toa nime" :ui="{ footer: 'justify-end' }">
+      <template #body>
+        <UInput v-model="editName" label="Uus nimi" placeholder="Toa nimi" />
+      </template>
+      <template #footer="{ close }">
+        <UButton variant="ghost" @click="closeModals(); close()">Tühista</UButton>
+        <UButton color="primary" @click="confirmEdit">Salvesta</UButton>
+      </template>
+    </UModal>
+
+    <UModal v-model:open="deleteOpen" title="Kustuta tuba?" :ui="{ footer: 'justify-end' }">
+      <template #body>
+        <p>Seda toimingut ei saa tagasi võtta. Kustuta kogu sisu koos toaga?</p>
+      </template>
+      <template #footer="{ close }">
+        <UButton variant="ghost" @click="closeModals(); close()">Tühista</UButton>
+        <UButton color="error" @click="confirmDelete">Kustuta</UButton>
+      </template>
+    </UModal>
   </div>
 </template>
 
@@ -31,6 +56,10 @@ const loading = ref(false)
 const error = ref('')
 
 const rooms = computed(() => store.rooms)
+const editOpen = ref(false)
+const deleteOpen = ref(false)
+const targetRoom = ref<{ id: number; name: string } | null>(null)
+const editName = ref('')
 
 async function fetchRooms() {
   loading.value = true
@@ -66,6 +95,39 @@ function openRoom(id: number) {
   router.push('/view')
 }
 
+function editRoom(room: { id: number; name: string }) {
+  targetRoom.value = room
+  editName.value = room.name
+  editOpen.value = true
+}
+
+function removeRoom(room: { id: number; name: string }) {
+  targetRoom.value = room
+  deleteOpen.value = true
+}
+
+async function confirmEdit() {
+  if (!targetRoom.value) { editOpen.value = false; return }
+  if (!editName.value.trim()) { editOpen.value = false; return }
+  await store.updateRoomName(targetRoom.value.id, editName.value)
+  await store.fetchRooms()
+  closeModals()
+}
+
+async function confirmDelete() {
+  if (!targetRoom.value) { deleteOpen.value = false; return }
+  await store.deleteRoom(targetRoom.value.id)
+  await store.fetchRooms()
+  closeModals()
+}
+
+function closeModals() {
+  editOpen.value = false
+  deleteOpen.value = false
+  targetRoom.value = null
+  editName.value = ''
+}
+
 onMounted(fetchRooms)
 </script>
 
@@ -99,9 +161,33 @@ onMounted(fetchRooms)
   background: rgba(17,24,39,0.7);
   border-radius: 12px;
   padding: 12px;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
 }
 .name { font-weight: 800; }
-.meta { color: var(--muted); font-size: 13px; }
+.card:hover {
+  border-color: var(--accent);
+  background: rgba(16,185,129,0.12);
+  transform: translateY(-2px) scale(1.01);
+}
+.room-actions {
+  display: flex;
+  gap: 6px;
+}
+.icon {
+  border: 1px solid #334155;
+  background: rgba(255,255,255,0.02);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.icon:hover { background: rgba(148,163,184,0.12); border-color: rgba(148,163,184,0.35); }
+.icon.danger { border-color: #7f1d1d; }
+.icon.danger:hover { background: rgba(244,63,94,0.15); border-color: #ef4444; }
 .info {
   border: 1px dashed #334155;
   border-radius: 12px;

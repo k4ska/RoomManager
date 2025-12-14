@@ -124,6 +124,46 @@ export const useStorageStore = defineStore('storage', () => {
     currentRoomId.value = id
   }
 
+  async function updateRoomName(id: number, name: string) {
+    try {
+      const trimmed = (name ?? '').toString().trim()
+      if (!trimmed) return false
+      const res = await fetch(`${apiBase()}/api/rooms/${id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: trimmed })
+      })
+      const data = await res.json()
+      if (data?.ok) {
+        await fetchRooms()
+        return true
+      }
+      return false
+    } catch {
+      return false
+    }
+  }
+
+  async function deleteRoom(id: number) {
+    try {
+      const res = await fetch(`${apiBase()}/api/rooms/${id}`, { method: 'DELETE', credentials: 'include' })
+      const data = await res.json()
+      if (data?.ok) {
+        await fetchRooms()
+        if (currentRoomId.value === id) {
+          currentRoomId.value = rooms.value[0]?.id ?? null
+          items.value = []
+          if (currentRoomId.value) await loadUnits()
+        }
+        return true
+      }
+      return false
+    } catch {
+      return false
+    }
+  }
+
   // Laeb aktiivse toa üksused backendist
   async function loadUnits() {
     const roomId = await ensureRoom()
@@ -250,7 +290,7 @@ export const useStorageStore = defineStore('storage', () => {
 
   return {
     items, currentRoomId, rooms,
-    ensureRoom, loadUnits, fetchRooms, createRoom, setCurrentRoom,
+    ensureRoom, loadUnits, fetchRooms, createRoom, setCurrentRoom, updateRoomName, deleteRoom,
     addUnit, updateUnit,
     updatePos, removeUnit,
     clear, setContents,
