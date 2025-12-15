@@ -349,6 +349,24 @@ function getWallPixels(edgeIndex: number) {
   return Math.hypot(b.x - a.x, b.y - a.y)
 }
 
+function getCornerAngleDeg(idx: number) {
+  const n = store.points.length
+  if (n < 3) return 0
+  const prev = store.points[(idx - 1 + n) % n]
+  const cur = store.points[idx]
+  const next = store.points[(idx + 1) % n]
+  const v1x = prev.x - cur.x
+  const v1y = prev.y - cur.y
+  const v2x = next.x - cur.x
+  const v2y = next.y - cur.y
+  const dot = v1x * v2x + v1y * v2y
+  const mag1 = Math.hypot(v1x, v1y) || 1
+  const mag2 = Math.hypot(v2x, v2y) || 1
+  const cos = Math.min(1, Math.max(-1, dot / (mag1 * mag2)))
+  const deg = Math.acos(cos) * 180 / Math.PI
+  return deg
+}
+
 function resizeWall(edgeIndex: number, newLengthMeters: number) {
   const a = store.points[edgeIndex]
   const b = store.points[(edgeIndex + 1) % store.points.length]
@@ -617,11 +635,11 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
 
         <!-- Wall metrics display on canvas grid -->
         <template v-if="store.showMetrics">
-          <template v-for="(p, i) in store.points" :key="'wall-metric-' + i">
-            <v-text
-              :config="(() => {
-                const a = store.points[i]
-                const b = store.points[(i + 1) % store.points.length]
+        <template v-for="(p, i) in store.points" :key="'wall-metric-' + i">
+          <v-text
+            :config="(() => {
+              const a = store.points[i]
+              const b = store.points[(i + 1) % store.points.length]
                 if (!a || !b) return { x: 0, y: 0, text: '', fontSize: 0 }
                 const midX = (a.x + b.x) / 2
                 const midY = (a.y + b.y) / 2
@@ -638,6 +656,22 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
               })()"
             />
           </template>
+        </template>
+
+        <template v-if="store.showAngles">
+          <v-text
+            v-for="(p, i) in store.points"
+            :key="'angle-' + i"
+            :config="{
+              x: p.x + 12,
+              y: p.y + 12,
+              text: getCornerAngleDeg(i).toFixed(1) + '°',
+              fontSize: 12,
+              fill: '#f59e0b',
+              fontStyle: 'normal',
+              listening: false
+            }"
+          />
         </template>
       </v-layer>
     </v-stage>

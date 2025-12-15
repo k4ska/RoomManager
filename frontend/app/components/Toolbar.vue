@@ -72,6 +72,10 @@
         <label>Ruumi pindala (m²):</label>
         <div>{{ roomAreaM2.toFixed(2) }}</div>
       </div>
+      <div class="row toggle-row">
+        <label>Näita nurki</label>
+        <input type="checkbox" v-model="store.showAngles" />
+      </div>
       <div class="row">
         <label>Uute uste suund:</label>
         <select v-model="store.doorDirection" @change="store.saveToServer()">
@@ -161,6 +165,7 @@ const toggleMetrics = () => store.toggleShowMetrics()
 const save = async () => {
   try { await store.saveToServer() } catch {}
   store.showMetrics = false
+  store.showAngles = false
   showTools.value = false
   router.push('/storage')
 }
@@ -266,12 +271,14 @@ function onUp() {
 
 onMounted(() => {
   store.showMetrics = false
+  store.showAngles = false
   window.addEventListener('mousemove', onMove)
   window.addEventListener('mouseup', onUp)
 })
 
 onBeforeUnmount(() => {
   store.showMetrics = false
+  store.showAngles = false
   window.removeEventListener('mousemove', onMove)
   window.removeEventListener('mouseup', onUp)
 })

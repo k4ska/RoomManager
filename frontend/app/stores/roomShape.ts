@@ -46,6 +46,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
   const addDoorMode = ref(false)
   const doorDirection = ref<'inside' | 'outside'>('inside')
   const showMetrics = ref(false)
+  const showAngles = ref(false)
   // Metrics scale: base pixels-per-meter; grid size = metricsScale * gridSizeMeters
   const metricsScale = ref(40) // pixels per meter
   const gridSizeMeters = ref(1) // meters per grid cell
@@ -392,6 +393,9 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
   function toggleShowMetrics() {
     showMetrics.value = !showMetrics.value
   }
+  function toggleShowAngles() {
+    showAngles.value = !showAngles.value
+  }
 
   function getWallLengthMeters(edgeIndex: number): number {
     const a = points.value[edgeIndex]
@@ -440,6 +444,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     snapEnabled,
     toggleSnap,
     toggleShowMetrics,
+    toggleShowAngles,
     getWallLengthMeters,
     setMetricsScale,
     gridSizeMeters,
@@ -452,6 +457,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     selectDoorPoint,
     deleteDoor,
     clearDoors,
+    showAngles,
     deletePoint,
     doorDirection,
     setDoorDirection,
