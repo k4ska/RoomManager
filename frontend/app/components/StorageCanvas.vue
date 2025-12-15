@@ -14,6 +14,13 @@ const selectedIds = ref<number[]>([])
 const hoverId = ref<number | null>(null)
 const imageCache = new Map<string, HTMLImageElement | null>()
 
+const scale = ref(1)
+const minScale = 1
+const maxScale = 1.6
+const pan = ref({ x: 0, y: 0 })
+let isPanning = false
+const panStart = { x: 0, y: 0 }
+
 const MIN = 30 // minimum side length in pixels
 const PADDING = 4 //emoji ümber ruum
 const WALL_MARGIN = 2 // minimum distance from walls in pixels
@@ -432,6 +439,65 @@ async function deleteItem(id: number) {
 }
 }
 
+// Pan and zoom
+function startPan(evt: any) {
+  const target = evt?.target
+  const targetId = target?.id?.() || ''
+  const isUnit = targetId.startsWith('unit-')
+  const isTransformer = target?.getParent?.()?.className === 'Transformer' || target?.className === 'Transformer'
+  const unitAncestor = target?.findAncestor?.((n: any) => typeof n.id === 'function' && n.id()?.startsWith?.('unit-'))
+  if (isUnit || isTransformer || unitAncestor) return
+  isPanning = true
+  panStart.x = evt.evt.clientX - pan.value.x
+  panStart.y = evt.evt.clientY - pan.value.y
+}
+
+function movePan(evt: any) {
+  if (!isPanning) return
+  const next = {
+    x: evt.evt.clientX - panStart.x,
+    y: evt.evt.clientY - panStart.y
+  }
+  pan.value = clampPan(next)
+}
+
+function endPan() { isPanning = false }
+
+function onWheel(evt: any) {
+  const stage = stageRef.value?.getNode?.()
+  if (!stage) return
+  evt.evt?.preventDefault?.()
+  const pointer = stage.getPointerPosition() || { x: room.stage.width / 2, y: room.stage.height / 2 }
+  const direction = evt.evt?.deltaY > 0 ? -1 : 1
+  const zoom = direction > 0 ? 1.06 : 0.94
+  const old = scale.value
+  const next = Math.min(maxScale, Math.max(minScale, old * zoom))
+  if (next === old) return
+  const mousePointTo = {
+    x: (pointer.x - pan.value.x) / old,
+    y: (pointer.y - pan.value.y) / old
+  }
+  const nextPan = {
+    x: pointer.x - mousePointTo.x * next,
+    y: pointer.y - mousePointTo.y * next
+  }
+  scale.value = next
+  pan.value = clampPan(nextPan)
+}
+
+function clampPan(raw: { x: number; y: number }) {
+  const w = room.stage.width
+  const h = room.stage.height
+  const minX = Math.min(0, w - w * scale.value)
+  const minY = Math.min(0, h - h * scale.value)
+  const maxX = 0
+  const maxY = 0
+  return {
+    x: clampValue(raw.x, minX, maxX),
+    y: clampValue(raw.y, minY, maxY)
+  }
+}
+
 // Sets up drag-and-drop for adding new items to the canvas
 onMounted(() => {
   const node = stageRef.value?.getNode?.()
@@ -662,251 +728,234 @@ async function onTransformEnd(id: number, e: any) {
 
 <template>
   <div class="canvas-wrap">
-    <v-stage ref="stageRef" :config="{
-        width: room.stage.width,
-        height: room.stage.height
-      }">
+    <v-stage
+      ref="stageRef"
+      :config="{ width: room.stage.width, height: room.stage.height }"
+      @wheel="onWheel"
+      @mousedown="startPan"
+      @mousemove="movePan"
+      @mouseup="endPan"
+      @mouseleave="endPan"
+    >
       <v-layer ref="layerRef">
-        <v-rect :config="{
-            id: 'bg',
-            x: 0,
-            y: 0,
-            width: room.stage.width,
-            height: room.stage.height,
-            fill: '#0b1222'
-          }" @mousedown="clearSelection" />
-
-        <!-- Grid clipped to room polygon -->
-        <v-group :config="{ clipFunc: roomClipFunc }">
-          <template v-for="(ln, idx) in gridLines" :key="'grid-'+idx">
-            <v-line :config="{ points: ln, stroke: '#1f2937', strokeWidth: 1, listening: false }" />
-          </template>
-        </v-group>
-
-        <!-- Grid size label (top-right) - tight fit -->
-        <v-group :config="{ x: 0, y: 0 }">
+        <v-group :config="{ x: pan.x, y: pan.y, scaleX: scale, scaleY: scale }">
           <v-rect :config="{
-              x: room.stage.width - gridLabelSize.width - 8,
-              y: 8,
-              width: gridLabelSize.width,
-              height: gridLabelSize.height,
-              fill: 'rgba(15,23,42,0.7)',
-              cornerRadius: 6,
-              listening: false
-            }" />
-          <v-text :config="{
-              x: room.stage.width - gridLabelSize.width - 8 + GRID_LABEL_PADDING,
-              y: 8 + Math.floor(GRID_LABEL_PADDING/2),
-              width: gridLabelSize.width - GRID_LABEL_PADDING * 2,
-              text: gridLabel,
-              fontSize: GRID_LABEL_FONT_SIZE,
-              fill: '#e5e7eb',
-              align: 'right',
-              listening: false
-            }" />
-        </v-group>
+              id: 'bg',
+              x: 0,
+              y: 0,
+              width: room.stage.width,
+              height: room.stage.height,
+              fill: '#0b1222'
+            }" @mousedown="clearSelection" />
 
-        <v-line
-          :points="room.points.flatMap(p => [p.x, p.y])"
-          :closed="true"
-          :stroke="'#e5e7eb'"
-          :strokeWidth="2.5"
-          :fill="'rgba(16,185,129,0.06)'"
-          @mousedown="clearSelection"
-        />
+          <!-- Grid clipped to room polygon -->
+          <v-group :config="{ clipFunc: roomClipFunc }">
+            <template v-for="(ln, idx) in gridLines" :key="'grid-'+idx">
+              <v-line :config="{ points: ln, stroke: '#1f2937', strokeWidth: 1, listening: false }" />
+            </template>
+          </v-group>
 
-        <!-- Render windows saved on the room (show openings and caps) -->
-        <template v-for="(win, idx) in windowsWithPoints" :key="'win' + win.index">
-          <v-line :config="{
-              points: [win.p1.x, win.p1.y, win.p2.x, win.p2.y],
-              stroke: 'rgba(16,185,129,0.06)',
-              strokeWidth: 8,
-              lineCap: 'butt',
-              listening: false
-            }" />
-          <v-line :config="{
-              points: capPointsAt(win.p1, getWindowPerp(win.p1, win.p2).nx, getWindowPerp(win.p1, win.p2).ny, 14),
-              stroke: '#e5e7eb', strokeWidth: 2, listening: false
-            }" />
-          <v-line :config="{
-              points: capPointsAt(win.p2, getWindowPerp(win.p1, win.p2).nx, getWindowPerp(win.p1, win.p2).ny, 14),
-              stroke: '#e5e7eb', strokeWidth: 2, listening: false
-            }" />
-        </template>
-
-        <!-- Doors (L-junction at p1, curved line from p2 to L tip) -->
-        <template v-for="(door, idx) in doorsWithPoints" :key="'door' + door.index">
-          <!-- L-junction: vertical line along the edge from p1 -->
           <v-line
-            :config="{
-              points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncVertEnd.x, door.lJuncVertEnd.y],
-              stroke: '#e5e7eb',
-              strokeWidth: 2,
-              listening: false
-            }"
+            :points="room.points.flatMap(p => [p.x, p.y])"
+            :closed="true"
+            :stroke="'#e5e7eb'"
+            :strokeWidth="2.5"
+            :fill="'rgba(16,185,129,0.06)'"
+            @mousedown="clearSelection"
           />
-          <!-- L-junction: perpendicular cap going outward from p1 -->
-          <v-line
-            :config="{
-              points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncCapEnd.x, door.lJuncCapEnd.y],
-              stroke: '#e5e7eb',
-              strokeWidth: 2,
-              listening: false
-            }"
-          />
-          <!-- Curved line from p2 to the tip of L-junction (using bezier curve points, white color) -->
-          <v-line
-            :config="{
-              points: door.curvePoints,
-              stroke: '#fff',
-              strokeWidth: 2.5,
-              listening: false,
-              lineCap: 'round'
-            }"
-          />
-        </template>
 
-        <template v-for="item in storage.items" :key="item.id">
-          <v-group
-            :config="{
-              id: `unit-${item.id}`,
-              x: item.x + item.w/2,
-              y: item.y + item.h/2,
-              offsetX: 0,
-              offsetY: 0,
-              rotation: item.rotation,
-              draggable: true,
-              dragBoundFunc: function(pos:any){
-                const wantedCenter = { x: pos.x, y: pos.y }
-                const tx = wantedCenter.x - item.w/2
-                const ty = wantedCenter.y - item.h/2
-                // Allow dragging freely anywhere inside the room (do not block over other items).
-                if (isRectFullyInsideRoom(tx, ty, item.w, item.h, item.rotation)) {
-                  return wantedCenter
-                }
-                // If outside, find closest center that is fully inside (but may overlap); collisions resolved on drop
-                const validCenter = findClosestCenterInsideRoom(wantedCenter, item.w, item.h, item.rotation)
-                return validCenter
-              }
-            }"
-            @mouseenter="() => hoverId = item.id"
-            @mouseleave="() => hoverId = (hoverId===item.id?null:hoverId)"
-            @click="(e: any) => onRectClick(item.id, e)"
-            @dragend="(e: any) => onDragEnd(item.id, e, item)"
-            @transform="(e: any) => onTransform(item.id, e)"
-            @transformend="(e: any) => onTransformEnd(item.id, e)"
-          >
-            
-            <v-rect :config="{
-              x: -item.w/2,
-              y: -item.h/2,
-              width: item.w,
-              height: item.h,
-              cornerRadius: 8,
-              fill: 'rgba(148,163,184,0.12)',
-              stroke: (hoverId===item.id || selectedIds.includes(item.id)) ? '#93c5fd' : '#334155',
-              strokeWidth: (hoverId===item.id || selectedIds.includes(item.id)) ? 2 : 1
-            }" />
+          <!-- Render windows saved on the room (show openings and caps) -->
+          <template v-for="(win, idx) in windowsWithPoints" :key="'win' + win.index">
+            <v-line :config="{
+                points: [win.p1.x, win.p1.y, win.p2.x, win.p2.y],
+                stroke: 'rgba(16,185,129,0.06)',
+                strokeWidth: 8,
+                lineCap: 'butt',
+                listening: false
+              }" />
+            <v-line :config="{
+                points: capPointsAt(win.p1, getWindowPerp(win.p1, win.p2).nx, getWindowPerp(win.p1, win.p2).ny, 14),
+                stroke: '#e5e7eb', strokeWidth: 2, listening: false
+              }" />
+            <v-line :config="{
+                points: capPointsAt(win.p2, getWindowPerp(win.p1, win.p2).nx, getWindowPerp(win.p1, win.p2).ny, 14),
+                stroke: '#e5e7eb', strokeWidth: 2, listening: false
+              }" />
+          </template>
 
-            <v-image
-              v-if="isImageEmoji(item.emoji)"
+          <!-- Doors (L-junction at p1, curved line from p2 to L tip) -->
+          <template v-for="(door, idx) in doorsWithPoints" :key="'door' + door.index">
+            <!-- L-junction: vertical line along the edge from p1 -->
+            <v-line
               :config="{
-                x: -item.w * 0.8 / 2,
-                y: -item.h * 0.8 / 2,
-                width: item.w * 0.8,
-                height: item.h * 0.8,
-                image: getImage(item.emoji) || undefined,
+                points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncVertEnd.x, door.lJuncVertEnd.y],
+                stroke: '#e5e7eb',
+                strokeWidth: 2,
                 listening: false
               }"
             />
-            <v-text
-              v-else
+            <!-- L-junction: perpendicular cap going outward from p1 -->
+            <v-line
               :config="{
+                points: [door.lJuncVertStart.x, door.lJuncVertStart.y, door.lJuncCapEnd.x, door.lJuncCapEnd.y],
+                stroke: '#e5e7eb',
+                strokeWidth: 2,
+                listening: false
+              }"
+            />
+            <!-- Curved line from p2 to the tip of L-junction (using bezier curve points, white color) -->
+            <v-line
+              :config="{
+                points: door.curvePoints,
+                stroke: '#fff',
+                strokeWidth: 2.5,
+                listening: false,
+                lineCap: 'round'
+              }"
+            />
+          </template>
+
+          <template v-for="item in storage.items" :key="item.id">
+            <v-group
+              :config="{
+                id: `unit-${item.id}`,
+                x: item.x + item.w/2,
+                y: item.y + item.h/2,
+                offsetX: 0,
+                offsetY: 0,
+                rotation: item.rotation,
+                draggable: true,
+                dragBoundFunc: function(pos:any){
+                  const wantedCenter = { x: pos.x, y: pos.y }
+                  const tx = wantedCenter.x - item.w/2
+                  const ty = wantedCenter.y - item.h/2
+                  // Allow dragging freely anywhere inside the room (do not block over other items).
+                  if (isRectFullyInsideRoom(tx, ty, item.w, item.h, item.rotation)) {
+                    return wantedCenter
+                  }
+                  // If outside, find closest center that is fully inside (but may overlap); collisions resolved on drop
+                  const validCenter = findClosestCenterInsideRoom(wantedCenter, item.w, item.h, item.rotation)
+                  return validCenter
+                }
+              }"
+              @mouseenter="() => hoverId = item.id"
+              @mouseleave="() => hoverId = (hoverId===item.id?null:hoverId)"
+              @click="(e: any) => onRectClick(item.id, e)"
+              @dragend="(e: any) => onDragEnd(item.id, e, item)"
+              @transform="(e: any) => onTransform(item.id, e)"
+              @transformend="(e: any) => onTransformEnd(item.id, e)"
+            >
+              
+              <v-rect :config="{
                 x: -item.w/2,
                 y: -item.h/2,
                 width: item.w,
                 height: item.h,
-                align: 'center',
-                verticalAlign: 'middle',
-                text: item.emoji,
-                fontSize: Math.max(20, Math.min(item.w, item.h) * 0.7),
-                fill: '#ffffff'
-              }"
-            />
-
-            <v-group
-              v-if="hoverId === item.id"
-              :config="{
-                x: item.w/2 - DELETE_BTN_SIZE/2,
-                y: -item.h/2 - DELETE_BTN_SIZE/2,
-                listening: true
-              }"
-              @click="(e : any) => { e.cancelBubble = true; deleteItem(item.id); }"
-              @tap="(e: any) => { e.cancelBubble = true; deleteItem(item.id); }"
-              @mousedown="(e: any) => e.cancelBubble = true"
-              @touchstart="(e: any) => e.cancelBubble = true"
-            >
-              <v-circle :config="{
-              x: 0,
-              y: 0,
-              radius: DELETE_BTN_SIZE/2,
-              fill: '#ef4444',
-              stroke: '#ffffff',
-              strokeWidth: 2,
-              shadowColor: '#000000',
-              shadowBlur: 4,
-              shadowOpacity: 0.3,
-              listening: true
-            }" 
-            @mouseenter="(e: any) => { e.target.fill('#dc2626'); e.target.getLayer().batchDraw(); }"
-            @mouseleave="(e: any) => { e.target.fill('#ef4444'); e.target.getLayer().batchDraw(); }"
-            />
-              
-              <v-text :config="{
-                x: -DELETE_BTN_SIZE/2,
-                y: -DELETE_BTN_SIZE/2,
-                width: DELETE_BTN_SIZE,
-                height: DELETE_BTN_SIZE,
-                text: '✕',
-                fontSize: 16,
-                fontStyle: 'bold',
-                fill: '#ffffff',
-                align: 'center',
-                verticalAlign: 'middle',
-                listening: false
+                cornerRadius: 8,
+                fill: 'rgba(148,163,184,0.12)',
+                stroke: (hoverId===item.id || selectedIds.includes(item.id)) ? '#93c5fd' : '#334155',
+                strokeWidth: (hoverId===item.id || selectedIds.includes(item.id)) ? 2 : 1
               }" />
-              
+
+              <v-image
+                v-if="isImageEmoji(item.emoji)"
+                :config="{
+                  x: -item.w * 0.8 / 2,
+                  y: -item.h * 0.8 / 2,
+                  width: item.w * 0.8,
+                  height: item.h * 0.8,
+                  image: getImage(item.emoji) || undefined,
+                  listening: false
+                }"
+              />
+              <v-text
+                v-else
+                :config="{
+                  x: -item.w/2,
+                  y: -item.h/2,
+                  width: item.w,
+                  height: item.h,
+                  align: 'center',
+                  verticalAlign: 'middle',
+                  text: item.emoji,
+                  fontSize: Math.max(20, Math.min(item.w, item.h) * 0.7),
+                  fill: '#ffffff'
+                }"
+              />
+
+              <v-group
+                v-if="hoverId === item.id"
+                :config="{
+                  x: item.w/2 - DELETE_BTN_SIZE/2,
+                  y: -item.h/2 - DELETE_BTN_SIZE/2,
+                  listening: true
+                }"
+                @click="(e : any) => { e.cancelBubble = true; deleteItem(item.id); }"
+                @tap="(e: any) => { e.cancelBubble = true; deleteItem(item.id); }"
+                @mousedown="(e: any) => e.cancelBubble = true"
+                @touchstart="(e: any) => e.cancelBubble = true"
+              >
+                <v-circle :config="{
+                x: 0,
+                y: 0,
+                radius: DELETE_BTN_SIZE/2,
+                fill: '#ef4444',
+                stroke: '#ffffff',
+                strokeWidth: 2,
+                shadowColor: '#000000',
+                shadowBlur: 4,
+                shadowOpacity: 0.3,
+                listening: true
+              }" 
+              @mouseenter="(e: any) => { e.target.fill('#dc2626'); e.target.getLayer().batchDraw(); }"
+              @mouseleave="(e: any) => { e.target.fill('#ef4444'); e.target.getLayer().batchDraw(); }"
+              />
+                
+                <v-text :config="{
+                  x: -DELETE_BTN_SIZE/2,
+                  y: -DELETE_BTN_SIZE/2,
+                  width: DELETE_BTN_SIZE,
+                  height: DELETE_BTN_SIZE,
+                  text: '✕',
+                  fontSize: 16,
+                  fontStyle: 'bold',
+                  fill: '#ffffff',
+                  align: 'center',
+                  verticalAlign: 'middle',
+                  listening: false
+                }" />
+                
+              </v-group>
             </v-group>
-          </v-group>
-        </template>
+          </template>
 
-        <v-transformer
-          ref="transformerRef"
-          :config="{
-            rotateEnabled: true,
-            // allow resizing from all sides and corners (rectangular resize)
-            enabledAnchors: ['top-left','top-center','top-right','middle-left','middle-right','bottom-left','bottom-center','bottom-right'],
-            boundBoxFunc: (oldBox:any, newBox:any) => {
-              const rawWidth = Math.abs(newBox.width)
-              const rawHeight = Math.abs(newBox.height)
-              const width = Math.max(MIN, rawWidth)
-              const height = Math.max(MIN, rawHeight)
-              const centerX = newBox.x + (newBox.width / 2)
-              const centerY = newBox.y + (newBox.height / 2)
-              const topLeftX = centerX - width / 2
-              const topLeftY = centerY - height / 2
-              const rotation = typeof newBox.rotation === 'number' ? newBox.rotation : (oldBox.rotation || 0)
-              // Prevent user from resizing unit outside room bounds
-              if (!isRectFullyInsideRoom(topLeftX, topLeftY, width, height, rotation)) {
-                return oldBox
+          <v-transformer
+            ref="transformerRef"
+            :config="{
+              rotateEnabled: true,
+              // allow resizing from all sides and corners (rectangular resize)
+              enabledAnchors: ['top-left','top-center','top-right','middle-left','middle-right','bottom-left','bottom-center','bottom-right'],
+              boundBoxFunc: (oldBox:any, newBox:any) => {
+                const rawWidth = Math.abs(newBox.width)
+                const rawHeight = Math.abs(newBox.height)
+                const width = Math.max(MIN, rawWidth)
+                const height = Math.max(MIN, rawHeight)
+                const centerX = newBox.x + (newBox.width / 2)
+                const centerY = newBox.y + (newBox.height / 2)
+                const topLeftX = centerX - width / 2
+                const topLeftY = centerY - height / 2
+                const rotation = typeof newBox.rotation === 'number' ? newBox.rotation : (oldBox.rotation || 0)
+                // Prevent user from resizing unit outside room bounds
+                if (!isRectFullyInsideRoom(topLeftX, topLeftY, width, height, rotation)) {
+                  return oldBox
+                }
+                const widthSign = newBox.width >= 0 ? 1 : -1
+                const heightSign = newBox.height >= 0 ? 1 : -1
+                return { ...newBox, width: widthSign * width, height: heightSign * height }
               }
-              const widthSign = newBox.width >= 0 ? 1 : -1
-              const heightSign = newBox.height >= 0 ? 1 : -1
-              return { ...newBox, width: widthSign * width, height: heightSign * height }
-            }
-          }"
-        />
-
+            }"
+          />
+        </v-group>
       </v-layer>
     </v-stage>
   </div>

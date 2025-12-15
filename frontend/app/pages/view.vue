@@ -160,9 +160,10 @@ onMounted(async () => {
 <style scoped>
 .view-wrap { 
   min-height: 100vh; 
-  max-width: 1080px; 
+  max-width: 1400px; 
+  width: 100%;
   margin: 0 auto; 
-  padding: 20px; 
+  padding: 16px 18px; 
 }
 .head {
   display: grid;
@@ -176,6 +177,7 @@ onMounted(async () => {
   border: 1px solid #334155; 
   border-radius: 16px; 
   padding: 12px; 
+  min-height: 700px;
 }
 .actions { 
   display: flex; 

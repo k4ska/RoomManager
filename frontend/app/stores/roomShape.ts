@@ -27,7 +27,7 @@ function activeRoomId(): number | null {
 interface Point { x: number; y: number }
 
 export const useRoomShapeStore = defineStore('roomShape', () => {
-  const stage = reactive({ width: 800, height: 600 })
+  const stage = reactive({ width: 1250, height: 720 })
 
   const snapEnabled = ref<boolean>(false) 
 

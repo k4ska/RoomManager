@@ -332,7 +332,7 @@ function isHighlighted(id: number) {
     </div>
 
     <!-- MÄRGUANDED paremal -->
-    <div class="notifications-panel">
+    <div v-if="inUseNotifications.length" class="notifications-panel">
       <div
         v-for="(notif, index) in inUseNotifications"
         :key="notif.id"
@@ -352,12 +352,15 @@ function isHighlighted(id: number) {
   gap: 20px;
   width: 100%;
   padding: 20px;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
 }
 
 .canvas-wrap {
-  flex: 1;
-  max-width: 80vw;
+  flex: 1 1 1000px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .notifications-panel {
