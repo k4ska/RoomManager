@@ -88,11 +88,10 @@ deploy:
     - chmod 644 ~/.ssh/known_hosts
   script:
     # loeme GitLabi muutujatest private key
-    - echo "("$SSH_PRIVATE_KEY" | tr -d '\r')"
     - ssh-add <(echo "$SSH_PRIVATE_KEY" | tr -d '\r')
 
-    # loome ssh ühenduse
-    - ssh ubuntu@${DOMAIN} "(aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin ${DOCKER_REGISTRY}) && CI_COMMIT_SHA=${CI_COMMIT_SHA} docker compose -f ~/app/compose.yml up -d"
+    # run AWS ECR login on the CI runner and pipe the password to the remote
+    - aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | ssh ubuntu@${DOMAIN} "docker login --username AWS --password-stdin ${DOCKER_REGISTRY} && docker compose -f ~/app/compose.yml pull && CI_COMMIT_SHA=${CI_COMMIT_SHA} docker compose -f ~/app/compose.yml up -d"
   after_script:
     - exit
   stage: deploy
