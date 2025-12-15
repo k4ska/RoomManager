@@ -40,7 +40,7 @@ namespace backend.Controllers
             return Ok(new { ok = true, shape, roomId = room.Id });
         }
 
-        public record ShapeDto(object? points, object? windows, object? doors);
+        public record ShapeDto(object? points, object? windows, object? doors, int? metricsScale, double? gridSizeMeters);
         // PATCH /api/room-shape (toa kuju salvestamine)
         [HttpPatch("room-shape")]
         public async Task<IActionResult> PatchRoomShape([FromBody] ShapeDto dto)
@@ -54,7 +54,7 @@ namespace backend.Controllers
                 _db.Rooms.Add(room); await _db.SaveChangesAsync();
             }
             // Persist full shape object (points + windows + doors) so frontend can store additional geometry
-            var shapeObj = new { points = dto.points, windows = dto.windows, doors = dto.doors };
+            var shapeObj = new { points = dto.points, windows = dto.windows, doors = dto.doors, metricsScale = dto.metricsScale, gridSizeMeters = dto.gridSizeMeters };
             room.Shape = System.Text.Json.JsonSerializer.Serialize(shapeObj);
             room.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
@@ -80,7 +80,7 @@ namespace backend.Controllers
             if (dto?.points is null) return BadRequest(new { ok = false, error = "points required" });
             var room = await _db.Rooms.FirstOrDefaultAsync(r => r.Id == roomId && r.UserId == uid.Value);
             if (room == null) return NotFound(new { ok = false, error = "Room not found" });
-            var shapeObj = new { points = dto.points, windows = dto.windows, doors = dto.doors };
+            var shapeObj = new { points = dto.points, windows = dto.windows, doors = dto.doors, metricsScale = dto.metricsScale, gridSizeMeters = dto.gridSizeMeters };
             room.Shape = System.Text.Json.JsonSerializer.Serialize(shapeObj);
             room.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();

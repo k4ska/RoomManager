@@ -14,8 +14,11 @@
     <section class="content">
       <StorageSelector />
       <div class="canvas-card">
-        <div class="hint">
-          Lohista „Kast”, „Kapp” või „Riiul” lõuendile. Klõpsa objektidel, et neid valida (või tühista valik).
+        <div class="hint-row">
+          <div class="hint">
+            Lohista „Kast”, „Kapp” või „Riiul” lõuendile. Klõpsa objektidel, et neid valida (või tühista valik).
+          </div>
+          <div class="grid-label">{{ gridLabel }}</div>
         </div>
         <ClientOnly>
           <StorageCanvas />
@@ -40,6 +43,11 @@ const router = useRouter()
 const shape = useRoomShapeStore()
 const store = useStorageStore()
 const confirmRef = ref<any>(null)
+const gridLabel = computed(() => {
+  const meters = shape.gridSizeMeters || 1
+  const text = Math.abs(Math.round(meters) - meters) < 1e-6 ? `${Math.round(meters)}` : `${meters.toFixed(2)}`
+  return `1 ruudu külg = ${text} m`
+})
 
 const hasItems = computed(() => store.items.length > 0)
 const selectedId = ref<number | null>(null)
@@ -155,9 +163,10 @@ async function saveOnly(): Promise<boolean> {
 <style scoped>
 .storage-wrap {
   min-height: 100vh;
-  max-width: 1200px;
+  max-width: 1600px;
+  width: 100%;
   margin: 0 auto;
-  padding: 20px;
+  padding: 16px 18px;
 }
 .head {
   display: flex;
@@ -167,8 +176,8 @@ async function saveOnly(): Promise<boolean> {
 }
 .content {
   display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 32px;
+  grid-template-columns: 360px 1fr;
+  gap: 24px;
   align-items: start;
 }
 .content :deep(.sidebar) {
@@ -181,11 +190,24 @@ async function saveOnly(): Promise<boolean> {
   border-radius: 16px;
   padding: 12px;
   overflow: hidden;
+  min-height: 820px;
 }
-.hint {
+.hint-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   color: #9ca3af;
   margin: 6px;
   font-size: 0.95rem;
+}
+.hint {
+  flex: 1;
+}
+.grid-label {
+  white-space: nowrap;
+  font-weight: 600;
+  color: #cbd5e1;
 }
 .actions {
   display: flex;

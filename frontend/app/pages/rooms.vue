@@ -113,7 +113,7 @@ async function confirmCreate() {
     await store.fetchRooms()
     if (id) {
       store.setCurrentRoom(id)
-      shapeStore.setShape('rectangle')
+      shapeStore.resetRoomState()
       await shapeStore.saveToServer(id)
       closeCreate()
       router.push('/editor')
@@ -194,6 +194,12 @@ onMounted(() => { store.setCurrentRoom(null) })
 }
 .btn:hover { background: var(--accent-hover); }
 .list { display: grid; gap: 10px; }
+.rooms .list {
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
+  padding: 8px 8px 12px 8px;
+  box-sizing: border-box;
+}
 .card {
   border: 1px solid #1f2937;
   background: rgba(17,24,39,0.7);

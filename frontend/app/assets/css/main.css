@@ -1,2 +1,9 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
+
+/* Prevent page-level scrolling when content fits the viewport */
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}

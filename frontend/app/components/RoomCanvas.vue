@@ -31,7 +31,7 @@ async function onDeleteDoor(index: number) {
 }
 
 function snapToGrid(x: number, y: number) {
-  const gridSize = 40
+  const gridSize = Math.max(8, store.metricsScale * (store.gridSizeMeters || 1))
   return {
     x: Math.round(x / gridSize) * gridSize,
     y: Math.round(y / gridSize) * gridSize
@@ -108,6 +108,14 @@ function handleLayerClick(e: any) {
   }
 }
 
+async function confirmDeletePoint(index: number) {
+  if (store.points.length <= 3) return
+  const ok = await (winConfirmRef.value?.open?.({
+    title: 'Kustuta tipp?',
+    message: 'Kas soovid selle tipu eemaldada?'
+  }) ?? false)
+  if (ok) store.deletePoint(index)
+}
 // Find nearest point on edge for window selection
 function selectWindowPoint(x: number, y: number) {
   const pts = store.points
@@ -341,6 +349,24 @@ function getWallPixels(edgeIndex: number) {
   return Math.hypot(b.x - a.x, b.y - a.y)
 }
 
+function getCornerAngleDeg(idx: number) {
+  const n = store.points.length
+  if (n < 3) return 0
+  const prev = store.points[(idx - 1 + n) % n]
+  const cur = store.points[idx]
+  const next = store.points[(idx + 1) % n]
+  const v1x = prev.x - cur.x
+  const v1y = prev.y - cur.y
+  const v2x = next.x - cur.x
+  const v2y = next.y - cur.y
+  const dot = v1x * v2x + v1y * v2y
+  const mag1 = Math.hypot(v1x, v1y) || 1
+  const mag2 = Math.hypot(v2x, v2y) || 1
+  const cos = Math.min(1, Math.max(-1, dot / (mag1 * mag2)))
+  const deg = Math.acos(cos) * 180 / Math.PI
+  return deg
+}
+
 function resizeWall(edgeIndex: number, newLengthMeters: number) {
   const a = store.points[edgeIndex]
   const b = store.points[(edgeIndex + 1) % store.points.length]
@@ -397,19 +423,19 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
         }" />
 
         <v-line
-          v-for="i in Math.floor(store.stage.width / 40) + 1"
+          v-for="i in Math.floor(store.stage.width / Math.max(8, store.metricsScale * store.gridSizeMeters)) + 1"
           :key="'v' + i"
           :config="{
-            points: [(i - 1) * 40, 0, (i - 1) * 40, store.stage.height],
+            points: [(i - 1) * Math.max(8, store.metricsScale * store.gridSizeMeters), 0, (i - 1) * Math.max(8, store.metricsScale * store.gridSizeMeters), store.stage.height],
             stroke: 'rgba(255,255,255,0.06)',
             strokeWidth: 1
           }"
         />
         <v-line
-          v-for="i in Math.floor(store.stage.height / 40) + 1"
+          v-for="i in Math.floor(store.stage.height / Math.max(8, store.metricsScale * store.gridSizeMeters)) + 1"
           :key="'h' + i"
           :config="{
-            points: [0, (i - 1) * 40, store.stage.width, (i - 1) * 40],
+            points: [0, (i - 1) * Math.max(8, store.metricsScale * store.gridSizeMeters), store.stage.width, (i - 1) * Math.max(8, store.metricsScale * store.gridSizeMeters)],
             stroke: 'rgba(255,255,255,0.06)',
             strokeWidth: 1
           }"
@@ -424,16 +450,12 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
           :fill="'rgba(16,185,129,0.08)'"
         />
         <!-- Regular points (green vertices) -->
-        <v-circle
+        <v-group
           v-for="(p, i) in store.points"
           :key="'pt' + i"
           :config="{
             x: p.x,
             y: p.y,
-            radius: 7,
-            fill: '#10b981',
-            stroke: '#052e24',
-            strokeWidth: 1.5,
             draggable: true
           }"
           @dragmove="e => {
@@ -441,17 +463,38 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
             const newY = e.target.y()
             const target = store.snapEnabled ? snapToGrid(newX, newY) : { x: newX, y: newY }
             if (canMovePoint(i, target.x, target.y)) {
-              // update store with (possibly snapped) coordinates so polygon follows
               store.updatePoint(i, target.x, target.y)
-              // ensure visual handle is at exact coords
               e.target.position({ x: target.x, y: target.y })
             } else {
-              // revert visual handle to the stored point
               const cur = store.points[i] || { x: newX, y: newY }
               e.target.position({ x: cur.x, y: cur.y })
             }
           }"
-        />
+        >
+          <v-circle
+            :config="{
+              x: 0,
+              y: 0,
+              radius: 7,
+              fill: '#10b981',
+              stroke: '#052e24',
+              strokeWidth: 1.5,
+            }"
+          />
+          <v-text
+            :config="{
+              x: 10,
+              y: -6,
+              text: '✕',
+              fontSize: 14,
+              fill: '#f87171',
+              fontStyle: 'bold',
+              cursor: 'pointer'
+            }"
+            @click="(e:any) => { e.cancelBubble = true; confirmDeletePoint(i) }"
+            @tap="(e:any) => { e.cancelBubble = true; confirmDeletePoint(i) }"
+          />
+        </v-group>
 
         <!-- Windows rendering -->
         <template v-for="(win, winIdx) in windowsWithPoints" :key="'win' + win.index">
@@ -592,11 +635,11 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
 
         <!-- Wall metrics display on canvas grid -->
         <template v-if="store.showMetrics">
-          <template v-for="(p, i) in store.points" :key="'wall-metric-' + i">
-            <v-text
-              :config="(() => {
-                const a = store.points[i]
-                const b = store.points[(i + 1) % store.points.length]
+        <template v-for="(p, i) in store.points" :key="'wall-metric-' + i">
+          <v-text
+            :config="(() => {
+              const a = store.points[i]
+              const b = store.points[(i + 1) % store.points.length]
                 if (!a || !b) return { x: 0, y: 0, text: '', fontSize: 0 }
                 const midX = (a.x + b.x) / 2
                 const midY = (a.y + b.y) / 2
@@ -614,63 +657,28 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
             />
           </template>
         </template>
+
+        <template v-if="store.showAngles">
+          <v-text
+            v-for="(p, i) in store.points"
+            :key="'angle-' + i"
+            :config="{
+              x: p.x + 12,
+              y: p.y + 12,
+              text: getCornerAngleDeg(i).toFixed(1) + '°',
+              fontSize: 12,
+              fill: '#f59e0b',
+              fontStyle: 'normal',
+              listening: false
+            }"
+          />
+        </template>
       </v-layer>
     </v-stage>
     <UusConfirmPopup ref="winConfirmRef" />
     <UusConfirmPopup ref="doorConfirmRef" />
     </div>
 
-    <!-- Simple metrics panel (rendered beside the canvas) -->
-    <div v-if="store.showMetrics" class="simple-metrics-panel">
-      <div class="simple-panel-header">
-        <div>Mõõdud</div>
-        <button class="simple-close" @click="store.toggleShowMetrics()">×</button>
-      </div>
-      <div class="simple-panel-body">
-        <div class="row">
-          <label>Px per meter:</label>
-          <input type="number" :value="store.metricsScale" step="1" min="1" @input="e => {
-            const v = parseInt((e.target as any).value, 10)
-            if (!isNaN(v)) store.setMetricsScale(v)
-          }" />
-        </div>
-        <div class="row">
-          <label>Ruumi pindala (m²):</label>
-          <div>{{ roomAreaM2.toFixed(2) }}</div>
-        </div>
-        <div class="row">
-          <label>Uute uste suund:</label>
-          <select v-model="store.doorDirection" @change="persistShape()">
-            <option value="inside">Sisse</option>
-            <option value="outside">Välja</option>
-          </select>
-        </div>
-
-        <div class="doors-list">
-          <div class="doors-header">Uksed</div>
-          <div v-for="(door, i) in store.doors" :key="'d' + i" class="door-row">
-            <div class="door-label">U{{ i + 1 }}</div>
-            <select @change="(e) => {
-              const target = e.target as HTMLSelectElement
-              const newDir = target.value as 'inside' | 'outside'
-              const door = { ...store.doors[i], direction: newDir }
-              store.doors.splice(i, 1, door)
-              store.saveToServer()
-            }">
-              <option value="inside" :selected="(door.direction || 'inside') === 'inside'">Sisse</option>
-              <option value="outside" :selected="door.direction === 'outside'">Välja</option>
-            </select>
-          </div>
-        </div>
-        <div class="walls-list">
-          <div class="walls-header">Seinad</div>
-          <div v-for="(_, i) in store.points" :key="'w' + i" class="wall-row">
-            <div class="wall-label">S{{ i + 1 }}</div>
-              <input class="wall-meter" type="number" :value="store.getWallLengthMeters(i).toFixed(2)" @input="e => onWallMetersChange(i, parseFloat((e.target as any).value || '0'))" step="0.1" />
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -687,41 +695,5 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
   align-items: flex-start;
   gap: 16px;
 }
-
-/* Simple metrics panel styles */
-.simple-metrics-panel {
-  position: relative;
-  width: 260px;
-  background: rgba(11,18,34,0.95);
-  border: 1px solid #fbbf24;
-  color: #e5e7eb;
-  z-index: 5000;
-  border-radius: 6px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.4);
-  font-size: 12px;
-}
-.simple-panel-header {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:8px 10px;
-  border-bottom:1px solid rgba(251,191,36,0.08);
-  cursor:default;
-  color:#fbbf24;
-  font-weight:600;
-}
-.simple-close{background:none;border:0;color:#fbbf24;font-size:16px;cursor:pointer}
-.simple-panel-body{padding:8px}
-.simple-panel-body .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.walls-list{max-height:200px;overflow:auto;border-top:1px dashed rgba(255,255,255,0.03);padding-top:8px}
-.walls-header{color:#fbbf24;font-weight:700;margin-bottom:6px}
-.wall-row{display:flex;gap:6px;align-items:center;padding:4px 0}
-.wall-label{width:30px;color:#fbbf24}
-.wall-px{width:70px;color:#cbd5e1;font-size:11px}
-.wall-meter{flex:1;padding:4px;border-radius:4px;border:1px solid rgba(251,191,36,0.15);background:rgba(51,65,85,0.6);color:#fbbf24;text-align:right}
-.doors-list{max-height:120px;overflow:auto;border-top:1px dashed rgba(255,255,255,0.03);padding-top:8px;margin-top:8px}
-.doors-header{color:#fbbf24;font-weight:700;margin-bottom:6px}
-.door-row{display:flex;gap:6px;align-items:center;padding:4px 0}
-.door-label{width:30px;color:#fbbf24}
 </style>
 

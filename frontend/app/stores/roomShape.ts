@@ -27,7 +27,7 @@ function activeRoomId(): number | null {
 interface Point { x: number; y: number }
 
 export const useRoomShapeStore = defineStore('roomShape', () => {
-  const stage = reactive({ width: 800, height: 600 })
+  const stage = reactive({ width: 1250, height: 720 })
 
   const snapEnabled = ref<boolean>(false) 
 
@@ -46,8 +46,10 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
   const addDoorMode = ref(false)
   const doorDirection = ref<'inside' | 'outside'>('inside')
   const showMetrics = ref(false)
-  // Metrics scale: 40 pixels = 1 meter (grid square = 1m by default)
+  const showAngles = ref(false)
+  // Metrics scale: base pixels-per-meter; grid size = metricsScale * gridSizeMeters
   const metricsScale = ref(40) // pixels per meter
+  const gridSizeMeters = ref(1) // meters per grid cell
   // Store windows as edge-relative fractions (t1,t2 in [0,1]) so they follow wall geometry
   const windows = ref<Array<{ edgeIndex: number; t1: number; t2: number }>>([])  
   const windowSelection = ref<{ edgeIndex: number; t: number } | null>(null)
@@ -382,9 +384,27 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     doors.value = []
   }
 
+  function deletePoint(index: number) {
+    if (points.value.length <= 3) return // keep polygon valid
+    points.value.splice(index, 1)
+  }
+
+  function resetRoomState() {
+    setShape('rectangle')
+    clearWindows()
+    clearDoors()
+    setDoorDirection('inside')
+    setMetricsScale(40)
+    setGridSizeMeters(1)
+    showAngles.value = false
+  }
+
   // Metrics helpers
   function toggleShowMetrics() {
     showMetrics.value = !showMetrics.value
+  }
+  function toggleShowAngles() {
+    showAngles.value = !showAngles.value
   }
 
   function getWallLengthMeters(edgeIndex: number): number {
@@ -399,6 +419,11 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     // enforce integer pixels-per-meter and a minimum of 1
     const intVal = Math.max(1, Math.floor(pixelsPerMeter || 0))
     metricsScale.value = intVal
+  }
+
+  function setGridSizeMeters(metersPerCell: number) {
+    const clamped = Math.min(10, Math.max(0.1, metersPerCell || 1))
+    gridSizeMeters.value = Number(clamped.toFixed(2))
   }
 
   function setDoorDirection(direction: 'inside' | 'outside') {  // ← LISA SEE
@@ -429,8 +454,11 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     snapEnabled,
     toggleSnap,
     toggleShowMetrics,
+    toggleShowAngles,
     getWallLengthMeters,
     setMetricsScale,
+    gridSizeMeters,
+    setGridSizeMeters,
     toggleAddWindowMode,
     selectWindowPoint,
     deleteWindow,
@@ -439,6 +467,9 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     selectDoorPoint,
     deleteDoor,
     clearDoors,
+    resetRoomState,
+    showAngles,
+    deletePoint,
     doorDirection,
     setDoorDirection,
     // Laeb salvestatud toakuju backendist (kui on)
@@ -448,7 +479,16 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
         const res = await fetch(shapeUrl(targetRoomId), { credentials: 'include' })
         const data = await res.json()
         if (data?.ok && Array.isArray(data.shape)) {
-          points.value = normalizeToStage(data.shape)
+          if ((data.shape as any)?.length > 0) {
+            points.value = normalizeToStage(data.shape)
+          } else {
+            setShape('rectangle')
+            windows.value = []
+            doors.value = []
+            doorDirection.value = 'inside'
+            setMetricsScale(40)
+            setGridSizeMeters(1)
+          }
         } else if (data?.ok && data.shape && Array.isArray((data.shape as any).points)) {
           points.value = normalizeToStage((data.shape as any).points)
         } else {
@@ -456,6 +496,8 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
           windows.value = []
           doors.value = []
           doorDirection.value = 'inside'
+          setMetricsScale(40)
+          setGridSizeMeters(1)
         }
         
         // Load windows from new nested shape or top-level for backward compatibility
@@ -470,8 +512,10 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
             })
             windows.value = parsed
           } catch (e) {
-            // ignore invalid windows
+            windows.value = []
           }
+        } else {
+          windows.value = []
         }
 
         // Load doors from shape
@@ -487,8 +531,26 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
             doors.value = parsed
             doorDirection.value = data.doorDirection === 'outside' ? 'outside' : 'inside'
           } catch (e) {
-            // ignore invalid doors
+            doors.value = []
+            doorDirection.value = 'inside'
           }
+        } else {
+          doors.value = []
+          doorDirection.value = 'inside'
+        }
+
+        // Load grid size and metrics scale if provided
+        const ms = (data.shape as any)?.metricsScale ?? data.metricsScale
+        if (typeof ms === 'number' && Number.isFinite(ms) && ms > 0) {
+          setMetricsScale(ms)
+        } else {
+          setMetricsScale(40)
+        }
+        const gs = (data.shape as any)?.gridSizeMeters ?? data.gridSizeMeters
+        if (typeof gs === 'number' && Number.isFinite(gs) && gs > 0) {
+          setGridSizeMeters(gs)
+        } else {
+          setGridSizeMeters(1)
         }
       } catch {}
     },
@@ -511,6 +573,8 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
           }))
         }
         payload.doorDirection = doorDirection.value
+        payload.metricsScale = metricsScale.value
+        payload.gridSizeMeters = gridSizeMeters.value
         const targetRoomId = roomId ?? activeRoomId()
         await fetch(shapeUrl(targetRoomId), {
           method: 'PATCH',

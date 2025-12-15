@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen bg-gradient-to-b from-[#0b1120] to-[#1a2238] text-gray-100">
-    <div class="max-w-6xl mx-auto py-8 px-6">
+    <div class="max-w-[1400px] mx-auto py-8 px-3 md:px-8">
       <header class="flex items-center justify-between mb-6">
         <h1 class="text-2xl font-semibold">Toa kujundaja</h1>
         <Toolbar />

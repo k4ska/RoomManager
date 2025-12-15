@@ -11,8 +11,6 @@ import HeaderBar from '~/components/HeaderBar.vue'
 </script>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-
 :root {
   --bg-start: #0b1120; /* Nuxt dark */
   --bg-end: #1a2238;   /* Deep blue */
@@ -27,7 +25,7 @@ html, body, #__nuxt {
 }
 
 html {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
 body {

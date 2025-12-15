@@ -140,6 +140,7 @@ export const useStorageStore = defineStore('storage', () => {
     if (data?.ok && id) {
       await fetchRooms()
       currentRoomId.value = id
+      persistRoomId(id)
       items.value = []
       return id
     }
