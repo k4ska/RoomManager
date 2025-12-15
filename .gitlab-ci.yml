@@ -70,8 +70,12 @@ deploy:
     - main
     - oskar
   before_script:
-    # teeme kindlaks, et ssh on installitud
-    - "which ssh-agent || ( apt-get update -y && apt-get install openssh-client git -y )"
+    # vajalikud tööriistad ja awscli (kuna deploy job asendab globaalset before_script)
+    - apk add --no-cache curl jq python3 py3-pip
+    - pip install --break-system-packages awscli
+
+    # teeme kindlaks, et ssh on installitud (alpine runneril kasutame openssh-client)
+    - which ssh-agent || (apk add --no-cache openssh-client git)
 
     # käivitame ssh
     - eval $(ssh-agent -s)
@@ -83,7 +87,7 @@ deploy:
     # leiame kõik serveri public key-d ja usaldame neid runneri keskkonnas
     - ssh-keyscan ${DOMAIN} >> ~/.ssh/known_hosts
     - chmod 644 ~/.ssh/known_hosts
-    # leiame kõik serveri public key-d ja usaldame neid runneri keskkonnas
+    # lisa veel kord (harva vajalik, kuid säilinud originaalist)
     - ssh-keyscan ${DOMAIN} >> ~/.ssh/known_hosts
     - chmod 644 ~/.ssh/known_hosts
   script:
