@@ -389,6 +389,16 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     points.value.splice(index, 1)
   }
 
+  function resetRoomState() {
+    setShape('rectangle')
+    clearWindows()
+    clearDoors()
+    setDoorDirection('inside')
+    setMetricsScale(40)
+    setGridSizeMeters(1)
+    showAngles.value = false
+  }
+
   // Metrics helpers
   function toggleShowMetrics() {
     showMetrics.value = !showMetrics.value
@@ -457,6 +467,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     selectDoorPoint,
     deleteDoor,
     clearDoors,
+    resetRoomState,
     showAngles,
     deletePoint,
     doorDirection,
@@ -468,7 +479,16 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
         const res = await fetch(shapeUrl(targetRoomId), { credentials: 'include' })
         const data = await res.json()
         if (data?.ok && Array.isArray(data.shape)) {
-          points.value = normalizeToStage(data.shape)
+          if ((data.shape as any)?.length > 0) {
+            points.value = normalizeToStage(data.shape)
+          } else {
+            setShape('rectangle')
+            windows.value = []
+            doors.value = []
+            doorDirection.value = 'inside'
+            setMetricsScale(40)
+            setGridSizeMeters(1)
+          }
         } else if (data?.ok && data.shape && Array.isArray((data.shape as any).points)) {
           points.value = normalizeToStage((data.shape as any).points)
         } else {
@@ -492,8 +512,10 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
             })
             windows.value = parsed
           } catch (e) {
-            // ignore invalid windows
+            windows.value = []
           }
+        } else {
+          windows.value = []
         }
 
         // Load doors from shape
@@ -509,8 +531,12 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
             doors.value = parsed
             doorDirection.value = data.doorDirection === 'outside' ? 'outside' : 'inside'
           } catch (e) {
-            // ignore invalid doors
+            doors.value = []
+            doorDirection.value = 'inside'
           }
+        } else {
+          doors.value = []
+          doorDirection.value = 'inside'
         }
 
         // Load grid size and metrics scale if provided

@@ -113,7 +113,7 @@ async function confirmCreate() {
     await store.fetchRooms()
     if (id) {
       store.setCurrentRoom(id)
-      shapeStore.setShape('rectangle')
+      shapeStore.resetRoomState()
       await shapeStore.saveToServer(id)
       closeCreate()
       router.push('/editor')
