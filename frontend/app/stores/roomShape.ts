@@ -48,6 +48,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
   const showMetrics = ref(false)
   // Metrics scale: 40 pixels = 1 meter (grid square = 1m by default)
   const metricsScale = ref(40) // pixels per meter
+  const gridSizeMeters = ref(1) // meters per grid cell
   // Store windows as edge-relative fractions (t1,t2 in [0,1]) so they follow wall geometry
   const windows = ref<Array<{ edgeIndex: number; t1: number; t2: number }>>([])  
   const windowSelection = ref<{ edgeIndex: number; t: number } | null>(null)
@@ -382,6 +383,11 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     doors.value = []
   }
 
+  function deletePoint(index: number) {
+    if (points.value.length <= 3) return // keep polygon valid
+    points.value.splice(index, 1)
+  }
+
   // Metrics helpers
   function toggleShowMetrics() {
     showMetrics.value = !showMetrics.value
@@ -399,6 +405,11 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     // enforce integer pixels-per-meter and a minimum of 1
     const intVal = Math.max(1, Math.floor(pixelsPerMeter || 0))
     metricsScale.value = intVal
+  }
+
+  function setGridSizeMeters(metersPerCell: number) {
+    const clamped = Math.min(10, Math.max(0.1, metersPerCell || 1))
+    gridSizeMeters.value = Number(clamped.toFixed(2))
   }
 
   function setDoorDirection(direction: 'inside' | 'outside') {  // ← LISA SEE
@@ -431,6 +442,8 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     toggleShowMetrics,
     getWallLengthMeters,
     setMetricsScale,
+    gridSizeMeters,
+    setGridSizeMeters,
     toggleAddWindowMode,
     selectWindowPoint,
     deleteWindow,
@@ -439,6 +452,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
     selectDoorPoint,
     deleteDoor,
     clearDoors,
+    deletePoint,
     doorDirection,
     setDoorDirection,
     // Laeb salvestatud toakuju backendist (kui on)
@@ -490,6 +504,16 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
             // ignore invalid doors
           }
         }
+
+        // Load grid size and metrics scale if provided
+        const ms = (data.shape as any)?.metricsScale ?? data.metricsScale
+        if (typeof ms === 'number' && Number.isFinite(ms) && ms > 0) {
+          setMetricsScale(ms)
+        }
+        const gs = (data.shape as any)?.gridSizeMeters ?? data.gridSizeMeters
+        if (typeof gs === 'number' && Number.isFinite(gs) && gs > 0) {
+          setGridSizeMeters(gs)
+        }
       } catch {}
     },
     // Salvestab praeguse toakuju backendi
@@ -511,6 +535,8 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
           }))
         }
         payload.doorDirection = doorDirection.value
+        payload.metricsScale = metricsScale.value
+        payload.gridSizeMeters = gridSizeMeters.value
         const targetRoomId = roomId ?? activeRoomId()
         await fetch(shapeUrl(targetRoomId), {
           method: 'PATCH',

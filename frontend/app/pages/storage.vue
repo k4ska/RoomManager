@@ -44,11 +44,9 @@ const shape = useRoomShapeStore()
 const store = useStorageStore()
 const confirmRef = ref<any>(null)
 const gridLabel = computed(() => {
-  const spacingPx = 40
-  const pxPerMeter = Math.max(1, Math.floor(shape.metricsScale || 40))
-  const metersPerCell = spacingPx / (pxPerMeter || 1)
-  const metersText = Math.abs(Math.round(metersPerCell) - metersPerCell) < 1e-6 ? `${Math.round(metersPerCell)}` : `${metersPerCell.toFixed(2)}`
-  return `1 ruudu külg = ${metersText} m`
+  const meters = shape.gridSizeMeters || 1
+  const text = Math.abs(Math.round(meters) - meters) < 1e-6 ? `${Math.round(meters)}` : `${meters.toFixed(2)}`
+  return `1 ruudu külg = ${text} m`
 })
 
 const hasItems = computed(() => store.items.length > 0)

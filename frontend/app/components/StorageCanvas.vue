@@ -25,7 +25,7 @@ const MIN = 30 // minimum side length in pixels
 const PADDING = 4 //emoji ümber ruum
 const WALL_MARGIN = 2 // minimum distance from walls in pixels
 const DELETE_BTN_SIZE = 24 // size of delete button
-const VISUAL_GRID_PX = 40 // visual grid cell size in pixels (fixed)
+const VISUAL_GRID_PX = computed(() => Math.max(8, room.metricsScale * (room.gridSizeMeters || 1))) // visual grid cell size in pixels
 
 // Tagastab väärtuse piiratud vahemikus [min, max]
 function clampValue(v: number, min: number, max: number) {
@@ -127,7 +127,7 @@ function capPointsAt(p: {x:number,y:number}, nx: number, ny: number, capLen: num
 
 // Grid lines visible inside the room only (clipped to room polygon)
 const gridLines = computed(() => {
-  const spacing = VISUAL_GRID_PX
+  const spacing = VISUAL_GRID_PX.value
   const w = room.stage.width
   const h = room.stage.height
   const lines: Array<[number,number,number,number]> = []
@@ -146,11 +146,9 @@ function roomClipFunc(ctx: any) {
 }
 
 const gridLabel = computed(() => {
-  const spacingPx = VISUAL_GRID_PX
-  const pxPerMeter = Math.max(1, Math.floor(room.metricsScale || 40))
-  const metersPerCell = spacingPx / (pxPerMeter || 1)
-  const metersText = Math.abs(Math.round(metersPerCell) - metersPerCell) < 1e-6 ? `${Math.round(metersPerCell)}` : `${metersPerCell.toFixed(2)}`
-  return `1 ruudu külg = ${metersText} m`
+  const meters = room.gridSizeMeters || 1
+  const text = Math.abs(Math.round(meters) - meters) < 1e-6 ? `${Math.round(meters)}` : `${meters.toFixed(2)}`
+  return `1 ruudu külg = ${text} m`
 })
 
 const GRID_LABEL_PADDING = 8

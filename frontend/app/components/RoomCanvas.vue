@@ -31,7 +31,7 @@ async function onDeleteDoor(index: number) {
 }
 
 function snapToGrid(x: number, y: number) {
-  const gridSize = 40
+  const gridSize = Math.max(8, store.metricsScale * (store.gridSizeMeters || 1))
   return {
     x: Math.round(x / gridSize) * gridSize,
     y: Math.round(y / gridSize) * gridSize
@@ -108,6 +108,14 @@ function handleLayerClick(e: any) {
   }
 }
 
+async function confirmDeletePoint(index: number) {
+  if (store.points.length <= 3) return
+  const ok = await (winConfirmRef.value?.open?.({
+    title: 'Kustuta tipp?',
+    message: 'Kas soovid selle tipu eemaldada?'
+  }) ?? false)
+  if (ok) store.deletePoint(index)
+}
 // Find nearest point on edge for window selection
 function selectWindowPoint(x: number, y: number) {
   const pts = store.points
@@ -397,19 +405,19 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
         }" />
 
         <v-line
-          v-for="i in Math.floor(store.stage.width / 40) + 1"
+          v-for="i in Math.floor(store.stage.width / Math.max(8, store.metricsScale * store.gridSizeMeters)) + 1"
           :key="'v' + i"
           :config="{
-            points: [(i - 1) * 40, 0, (i - 1) * 40, store.stage.height],
+            points: [(i - 1) * Math.max(8, store.metricsScale * store.gridSizeMeters), 0, (i - 1) * Math.max(8, store.metricsScale * store.gridSizeMeters), store.stage.height],
             stroke: 'rgba(255,255,255,0.06)',
             strokeWidth: 1
           }"
         />
         <v-line
-          v-for="i in Math.floor(store.stage.height / 40) + 1"
+          v-for="i in Math.floor(store.stage.height / Math.max(8, store.metricsScale * store.gridSizeMeters)) + 1"
           :key="'h' + i"
           :config="{
-            points: [0, (i - 1) * 40, store.stage.width, (i - 1) * 40],
+            points: [0, (i - 1) * Math.max(8, store.metricsScale * store.gridSizeMeters), store.stage.width, (i - 1) * Math.max(8, store.metricsScale * store.gridSizeMeters)],
             stroke: 'rgba(255,255,255,0.06)',
             strokeWidth: 1
           }"
@@ -424,16 +432,12 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
           :fill="'rgba(16,185,129,0.08)'"
         />
         <!-- Regular points (green vertices) -->
-        <v-circle
+        <v-group
           v-for="(p, i) in store.points"
           :key="'pt' + i"
           :config="{
             x: p.x,
             y: p.y,
-            radius: 7,
-            fill: '#10b981',
-            stroke: '#052e24',
-            strokeWidth: 1.5,
             draggable: true
           }"
           @dragmove="e => {
@@ -441,17 +445,38 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
             const newY = e.target.y()
             const target = store.snapEnabled ? snapToGrid(newX, newY) : { x: newX, y: newY }
             if (canMovePoint(i, target.x, target.y)) {
-              // update store with (possibly snapped) coordinates so polygon follows
               store.updatePoint(i, target.x, target.y)
-              // ensure visual handle is at exact coords
               e.target.position({ x: target.x, y: target.y })
             } else {
-              // revert visual handle to the stored point
               const cur = store.points[i] || { x: newX, y: newY }
               e.target.position({ x: cur.x, y: cur.y })
             }
           }"
-        />
+        >
+          <v-circle
+            :config="{
+              x: 0,
+              y: 0,
+              radius: 7,
+              fill: '#10b981',
+              stroke: '#052e24',
+              strokeWidth: 1.5,
+            }"
+          />
+          <v-text
+            :config="{
+              x: 10,
+              y: -6,
+              text: '✕',
+              fontSize: 14,
+              fill: '#f87171',
+              fontStyle: 'bold',
+              cursor: 'pointer'
+            }"
+            @click="(e:any) => { e.cancelBubble = true; confirmDeletePoint(i) }"
+            @tap="(e:any) => { e.cancelBubble = true; confirmDeletePoint(i) }"
+          />
+        </v-group>
 
         <!-- Windows rendering -->
         <template v-for="(win, winIdx) in windowsWithPoints" :key="'win' + win.index">
