@@ -70,12 +70,8 @@ deploy:
     - main
     - oskar
   before_script:
-    # vajalikud tööriistad ja awscli (kuna deploy job asendab globaalset before_script)
-    - apk add --no-cache curl jq python3 py3-pip
-    - pip install --break-system-packages awscli
-
-    # teeme kindlaks, et ssh on installitud (alpine runneril kasutame openssh-client)
-    - which ssh-agent || (apk add --no-cache openssh-client git)
+    # teeme kindlaks, et ssh on installitud
+    - "which ssh-agent || ( apt-get update -y && apt-get install openssh-client git -y )"
 
     # käivitame ssh
     - eval $(ssh-agent -s)
@@ -87,15 +83,17 @@ deploy:
     # leiame kõik serveri public key-d ja usaldame neid runneri keskkonnas
     - ssh-keyscan ${DOMAIN} >> ~/.ssh/known_hosts
     - chmod 644 ~/.ssh/known_hosts
-    # lisa veel kord (harva vajalik, kuid säilinud originaalist)
+    # leiame kõik serveri public key-d ja usaldame neid runneri keskkonnas
     - ssh-keyscan ${DOMAIN} >> ~/.ssh/known_hosts
     - chmod 644 ~/.ssh/known_hosts
   script:
     # loeme GitLabi muutujatest private key
+    - echo "("$SSH_PRIVATE_KEY" | tr -d '\r')"
     - ssh-add <(echo "$SSH_PRIVATE_KEY" | tr -d '\r')
 
-    # run AWS ECR login on the CI runner and pipe the password to the remote
-    - aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | ssh ubuntu@${DOMAIN} "docker login --username AWS --password-stdin ${DOCKER_REGISTRY} && docker compose -f ~/app/compose.yml pull && CI_COMMIT_SHA=${CI_COMMIT_SHA} docker compose -f ~/app/compose.yml up -d"
+    # loome ssh ühenduse
+    - ssh ubuntu@${DOMAIN} "(aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin ${DOCKER_REGISTRY}) && CI_COMMIT_SHA=${CI_COMMIT_SHA} docker compose -f ~/app/compose.yml up -d"
   after_script:
     - exit
   stage: deploy
+
