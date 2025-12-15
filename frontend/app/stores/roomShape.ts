@@ -46,7 +46,7 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
   const addDoorMode = ref(false)
   const doorDirection = ref<'inside' | 'outside'>('inside')
   const showMetrics = ref(false)
-  // Metrics scale: 40 pixels = 1 meter (grid square = 1m by default)
+  // Metrics scale: base pixels-per-meter; grid size = metricsScale * gridSizeMeters
   const metricsScale = ref(40) // pixels per meter
   const gridSizeMeters = ref(1) // meters per grid cell
   // Store windows as edge-relative fractions (t1,t2 in [0,1]) so they follow wall geometry

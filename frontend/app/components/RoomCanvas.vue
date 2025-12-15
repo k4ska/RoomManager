@@ -645,57 +645,6 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
     <UusConfirmPopup ref="doorConfirmRef" />
     </div>
 
-    <!-- Simple metrics panel (rendered beside the canvas) -->
-    <div v-if="store.showMetrics" class="simple-metrics-panel">
-      <div class="simple-panel-header">
-        <div>Mõõdud</div>
-        <button class="simple-close" @click="store.toggleShowMetrics()">×</button>
-      </div>
-      <div class="simple-panel-body">
-        <div class="row">
-          <label>Px per meter:</label>
-          <input type="number" :value="store.metricsScale" step="1" min="1" @input="e => {
-            const v = parseInt((e.target as any).value, 10)
-            if (!isNaN(v)) store.setMetricsScale(v)
-          }" />
-        </div>
-        <div class="row">
-          <label>Ruumi pindala (m²):</label>
-          <div>{{ roomAreaM2.toFixed(2) }}</div>
-        </div>
-        <div class="row">
-          <label>Uute uste suund:</label>
-          <select v-model="store.doorDirection" @change="persistShape()">
-            <option value="inside">Sisse</option>
-            <option value="outside">Välja</option>
-          </select>
-        </div>
-
-        <div class="doors-list">
-          <div class="doors-header">Uksed</div>
-          <div v-for="(door, i) in store.doors" :key="'d' + i" class="door-row">
-            <div class="door-label">U{{ i + 1 }}</div>
-            <select @change="(e) => {
-              const target = e.target as HTMLSelectElement
-              const newDir = target.value as 'inside' | 'outside'
-              const door = { ...store.doors[i], direction: newDir }
-              store.doors.splice(i, 1, door)
-              store.saveToServer()
-            }">
-              <option value="inside" :selected="(door.direction || 'inside') === 'inside'">Sisse</option>
-              <option value="outside" :selected="door.direction === 'outside'">Välja</option>
-            </select>
-          </div>
-        </div>
-        <div class="walls-list">
-          <div class="walls-header">Seinad</div>
-          <div v-for="(_, i) in store.points" :key="'w' + i" class="wall-row">
-            <div class="wall-label">S{{ i + 1 }}</div>
-              <input class="wall-meter" type="number" :value="store.getWallLengthMeters(i).toFixed(2)" @input="e => onWallMetersChange(i, parseFloat((e.target as any).value || '0'))" step="0.1" />
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -712,41 +661,5 @@ function onWallMetersChange(edgeIndex: number, newLengthMeters: number) {
   align-items: flex-start;
   gap: 16px;
 }
-
-/* Simple metrics panel styles */
-.simple-metrics-panel {
-  position: relative;
-  width: 260px;
-  background: rgba(11,18,34,0.95);
-  border: 1px solid #fbbf24;
-  color: #e5e7eb;
-  z-index: 5000;
-  border-radius: 6px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.4);
-  font-size: 12px;
-}
-.simple-panel-header {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:8px 10px;
-  border-bottom:1px solid rgba(251,191,36,0.08);
-  cursor:default;
-  color:#fbbf24;
-  font-weight:600;
-}
-.simple-close{background:none;border:0;color:#fbbf24;font-size:16px;cursor:pointer}
-.simple-panel-body{padding:8px}
-.simple-panel-body .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.walls-list{max-height:200px;overflow:auto;border-top:1px dashed rgba(255,255,255,0.03);padding-top:8px}
-.walls-header{color:#fbbf24;font-weight:700;margin-bottom:6px}
-.wall-row{display:flex;gap:6px;align-items:center;padding:4px 0}
-.wall-label{width:30px;color:#fbbf24}
-.wall-px{width:70px;color:#cbd5e1;font-size:11px}
-.wall-meter{flex:1;padding:4px;border-radius:4px;border:1px solid rgba(251,191,36,0.15);background:rgba(51,65,85,0.6);color:#fbbf24;text-align:right}
-.doors-list{max-height:120px;overflow:auto;border-top:1px dashed rgba(255,255,255,0.03);padding-top:8px;margin-top:8px}
-.doors-header{color:#fbbf24;font-weight:700;margin-bottom:6px}
-.door-row{display:flex;gap:6px;align-items:center;padding:4px 0}
-.door-label{width:30px;color:#fbbf24}
 </style>
 
