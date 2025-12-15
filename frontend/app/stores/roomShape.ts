@@ -470,6 +470,8 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
           windows.value = []
           doors.value = []
           doorDirection.value = 'inside'
+          setMetricsScale(40)
+          setGridSizeMeters(1)
         }
         
         // Load windows from new nested shape or top-level for backward compatibility
@@ -509,10 +511,14 @@ export const useRoomShapeStore = defineStore('roomShape', () => {
         const ms = (data.shape as any)?.metricsScale ?? data.metricsScale
         if (typeof ms === 'number' && Number.isFinite(ms) && ms > 0) {
           setMetricsScale(ms)
+        } else {
+          setMetricsScale(40)
         }
         const gs = (data.shape as any)?.gridSizeMeters ?? data.gridSizeMeters
         if (typeof gs === 'number' && Number.isFinite(gs) && gs > 0) {
           setGridSizeMeters(gs)
+        } else {
+          setGridSizeMeters(1)
         }
       } catch {}
     },
