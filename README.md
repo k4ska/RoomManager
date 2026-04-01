@@ -1,5 +1,7 @@
 Room Manager — kehvade juhiste värskendus
 
+Room Manager on meeskonnaprojekt, kus saab enda tuba modelleerida, sisustada ja inventuuri hallata - eesmärgiga hoida enda elamist korras ja asju organiseeritult. 
+
 See repo sisaldab Nuxt 4 frontend'i, ASP.NET Core backend'i ja Postgres andmebaasi. Alljärgnevad juhised on ajakohased arendus‑keskkonna jaoks (Docker Compose).
 
 Teenused
@@ -79,5 +81,3 @@ Lisad
 
 - Veaotsingu sammud: `DEV-DEBUG.md` (repo juures)
 - pgAdmin juhend: `PGADMIN-README.md` (repo juures)
-
-Kui soovite, värskendan README-d veelgi (nt lisada CI hoovad, build‑käsud või arendus‑workflow). Palun ütle, kas soovid ingliskeelset versiooni ka lisada.
